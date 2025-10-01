@@ -208,9 +208,16 @@ class Settings(BaseSettings):
     PAL24_MIN_AMOUNT_KOPEKS: int = 10000
     PAL24_MAX_AMOUNT_KOPEKS: int = 100000000
     PAL24_REQUEST_TIMEOUT: int = 30
+    PAL24_SBP_BUTTON_TEXT: Optional[str] = None
+    PAL24_CARD_BUTTON_TEXT: Optional[str] = None
 
     CONNECT_BUTTON_MODE: str = "guide"
     MINIAPP_CUSTOM_URL: str = ""
+    MINIAPP_PURCHASE_URL: str = ""
+    MINIAPP_SERVICE_NAME_EN: str = "Bedolaga VPN"
+    MINIAPP_SERVICE_NAME_RU: str = "Bedolaga VPN"
+    MINIAPP_SERVICE_DESCRIPTION_EN: str = "Secure & Fast Connection"
+    MINIAPP_SERVICE_DESCRIPTION_RU: str = "Безопасное и быстрое подключение"
     CONNECT_BUTTON_HAPP_DOWNLOAD_ENABLED: bool = False
     HAPP_CRYPTOLINK_REDIRECT_TEMPLATE: Optional[str] = None
     HAPP_DOWNLOAD_LINK_IOS: Optional[str] = None
@@ -399,6 +406,14 @@ class Settings(BaseSettings):
             "password": self.REMNAWAVE_PASSWORD,
             "auth_type": self.REMNAWAVE_AUTH_TYPE
         }
+
+    def get_pal24_sbp_button_text(self, fallback: str) -> str:
+        value = (self.PAL24_SBP_BUTTON_TEXT or "").strip()
+        return value or fallback
+
+    def get_pal24_card_button_text(self, fallback: str) -> str:
+        value = (self.PAL24_CARD_BUTTON_TEXT or "").strip()
+        return value or fallback
     
     def get_remnawave_user_delete_mode(self) -> str:
         """Возвращает режим удаления пользователей: 'delete' или 'disable'"""
@@ -508,6 +523,34 @@ class Settings(BaseSettings):
     
     def is_deep_links_enabled(self) -> bool:
         return self.ENABLE_DEEP_LINKS
+
+    def get_miniapp_branding(self) -> Dict[str, Dict[str, Optional[str]]]:
+        def _clean(value: Optional[str]) -> Optional[str]:
+            if value is None:
+                return None
+            value_str = str(value).strip()
+            return value_str or None
+
+        name_en = _clean(self.MINIAPP_SERVICE_NAME_EN)
+        name_ru = _clean(self.MINIAPP_SERVICE_NAME_RU)
+        desc_en = _clean(self.MINIAPP_SERVICE_DESCRIPTION_EN)
+        desc_ru = _clean(self.MINIAPP_SERVICE_DESCRIPTION_RU)
+
+        default_name = name_en or name_ru or "RemnaWave VPN"
+        default_description = desc_en or desc_ru or "Secure & Fast Connection"
+
+        return {
+            "service_name": {
+                "default": default_name,
+                "en": name_en,
+                "ru": name_ru,
+            },
+            "service_description": {
+                "default": default_description,
+                "en": desc_en,
+                "ru": desc_ru,
+            },
+        }
     
     def get_app_config_cache_ttl(self) -> int:
         return self.APP_CONFIG_CACHE_TTL
