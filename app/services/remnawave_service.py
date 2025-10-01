@@ -100,6 +100,21 @@ class RemnaWaveService:
             logger.warning(f"⚠️ Не удалось распарсить дату '{date_str}': {e}. Используем дефолтную дату.")
             return datetime.utcnow() + timedelta(days=30)
     
+    def _safe_int(self, value, default: int = 0) -> int:
+        try:
+            if isinstance(value, bool):
+                return int(value)
+            if isinstance(value, (int, float)):
+                return int(value)
+            if isinstance(value, str):
+                cleaned = value.strip().replace(',', '.')
+                if not cleaned:
+                    return default
+                return int(float(cleaned))
+        except (TypeError, ValueError):
+            return default
+        return default
+
     async def get_system_statistics(self) -> Dict[str, Any]:
             try:
                 async with self.get_api_client() as api:
@@ -180,7 +195,7 @@ class RemnaWaveService:
                             "memory_used": system_stats.get('memory', {}).get('used', 0),
                             "memory_free": system_stats.get('memory', {}).get('free', 0),
                             "memory_available": system_stats.get('memory', {}).get('available', 0),
-                            "uptime_seconds": system_stats.get('uptime', 0)
+                            "uptime_seconds": self._safe_int(system_stats.get('uptime', 0))
                         },
                         "bandwidth": {
                             "realtime_download": total_download,

@@ -33,3 +33,5 @@ app/**/*.pyd
 *.pyc
 *.pyo
 *.pyd
+!web-admin/
+!web-admin/**
