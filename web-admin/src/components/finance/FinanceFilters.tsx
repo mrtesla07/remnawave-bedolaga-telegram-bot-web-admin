@@ -54,7 +54,7 @@ export function FinanceFilters({ onChange }: FinanceFiltersProps) {
         onChange={(event) => setUserId(event.target.value.replace(/[^0-9]/g, ""))}
       />
       <select
-        className="rounded-2xl border border-outline/40 bg-surface/60 px-3 py-2 text-sm text-textMuted focus:border-primary/70 focus:outline-none focus:ring-2 focus:ring-primary/30"
+        className="rounded-2xl border border-outline/40 bg-surface/70 px-3 py-2 text-sm text-white focus:border-primary/70 focus:outline-none focus:ring-2 focus:ring-primary/30"
         value={type}
         onChange={(event) => setType(event.target.value)}
       >
@@ -71,7 +71,7 @@ export function FinanceFilters({ onChange }: FinanceFiltersProps) {
         onChange={(event) => setPaymentMethod(event.target.value)}
       />
       <select
-        className="rounded-2xl border border-outline/40 bg-surface/60 px-3 py-2 text-sm text-textMuted focus:border-primary/70 focus:outline-none focus:ring-2 focus:ring-primary/30"
+        className="rounded-2xl border border-outline/40 bg-surface/70 px-3 py-2 text-sm text-white focus:border-primary/70 focus:outline-none focus:ring-2 focus:ring-primary/30"
         value={status}
         onChange={(event) => setStatus(event.target.value)}
       >

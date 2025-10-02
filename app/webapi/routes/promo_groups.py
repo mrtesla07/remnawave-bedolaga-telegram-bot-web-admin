@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from typing import Any
+from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, Security, status
 from sqlalchemy.exc import IntegrityError
@@ -40,7 +41,20 @@ def _normalize_period_discounts(group: PromoGroup) -> dict[int, int]:
     return normalized
 
 
+def _ensure_datetime(value: Any) -> datetime:
+    if isinstance(value, datetime):
+        return value
+    if isinstance(value, str):
+        try:
+            return datetime.fromisoformat(value.replace("Z", "+00:00"))
+        except ValueError:
+            pass
+    return datetime.utcnow()
+
+
 def _serialize(group: PromoGroup, members_count: int = 0) -> PromoGroupResponse:
+    created_at = _ensure_datetime(getattr(group, "created_at", None) or getattr(group, "updated_at", None))
+    updated_at = _ensure_datetime(getattr(group, "updated_at", None) or getattr(group, "created_at", None))
     return PromoGroupResponse(
         id=group.id,
         name=group.name,
@@ -52,8 +66,8 @@ def _serialize(group: PromoGroup, members_count: int = 0) -> PromoGroupResponse:
         apply_discounts_to_addons=group.apply_discounts_to_addons,
         is_default=group.is_default,
         members_count=members_count,
-        created_at=group.created_at,
-        updated_at=group.updated_at,
+        created_at=created_at,
+        updated_at=updated_at,
     )
 
 

@@ -1,11 +1,13 @@
 import type { ReactNode } from "react";
-import { Clock3, Cpu, Gauge, HardDrive, Server } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Activity, Clock3, Cpu, Gauge, HardDrive, Server, Users, Wifi } from "lucide-react";
 import clsx from "clsx";
 import type { RemnawaveSystemStats } from "@/types/dashboard";
 
 interface SystemStatsCardProps {
   stats: RemnawaveSystemStats | null;
   isLoading?: boolean;
+  nodesOnlineOverride?: number;
 }
 
 const numberFormatter = new Intl.NumberFormat("ru-RU", { maximumFractionDigits: 1, minimumFractionDigits: 1 });
@@ -13,7 +15,7 @@ const percentFormatter = new Intl.NumberFormat("ru-RU", { maximumFractionDigits:
 const relativeTimeFormatter = new Intl.RelativeTimeFormat("ru-RU", { numeric: "auto" });
 const BYTES_IN_GB = 1024 ** 3;
 
-export function SystemStatsCard({ stats, isLoading = false }: SystemStatsCardProps) {
+export function SystemStatsCard({ stats, isLoading = false, nodesOnlineOverride }: SystemStatsCardProps) {
   if (isLoading && !stats) {
     return (
       <section className="card glow-border overflow-hidden rounded-3xl border border-outline/50 bg-surface/70 p-6">
@@ -60,8 +62,41 @@ export function SystemStatsCard({ stats, isLoading = false }: SystemStatsCardPro
     stats.server.memoryAvailableBytes ?? stats.server.memoryFreeBytes,
   );
   const memoryFree = formatBytes(stats.server.memoryAvailableBytes ?? stats.server.memoryFreeBytes);
-  const uptimeValue = formatUptime(stats.server.uptimeSeconds);
+  const uptimeSecondsBase = Math.max(0, stats.server.uptimeSeconds || 0);
+  const startRef = useRef<number>(Date.now());
+  const [tick, setTick] = useState(0);
+  useEffect(() => {
+    startRef.current = Date.now();
+    setTick(0);
+  }, [stats.lastUpdated, uptimeSecondsBase]);
+  useEffect(() => {
+    let rafId = 0;
+    const loop = () => {
+      setTick((t) => t + 1);
+      rafId = window.setTimeout(loop, 1000);
+    };
+    rafId = window.setTimeout(loop, 1000);
+    return () => window.clearTimeout(rafId);
+  }, []);
+  const totalUptimeSeconds = useMemo(() => {
+    const elapsedSec = Math.floor((Date.now() - startRef.current) / 1000);
+    return uptimeSecondsBase + Math.max(0, elapsedSec);
+  }, [uptimeSecondsBase, tick]);
   const lastUpdatedLabel = formatRelativeTime(stats.lastUpdated);
+
+  const summaryItems: Array<{ label: string; value: string }> = [];
+  if (stats.summary) {
+    summaryItems.push(
+      { label: "Активные подключения", value: formatInteger(stats.summary.activeConnections) },
+      { label: "Онлайн пользователей", value: formatInteger(stats.summary.usersOnline) },
+      { label: "Пользователи (всего)", value: formatInteger(stats.summary.totalUsers) },
+      { label: "Нод доступно", value: formatInteger(nodesOnlineOverride ?? stats.summary.nodesOnline) },
+    );
+  }
+
+  const bandwidthValue = stats.bandwidth
+    ? `${formatBytes(stats.bandwidth.realtimeTotalBytes)} (↓ ${formatBytes(stats.bandwidth.realtimeDownloadBytes)} · ↑ ${formatBytes(stats.bandwidth.realtimeUploadBytes)})`
+    : "нет данных";
 
   return (
     <section className="card glow-border overflow-hidden rounded-3xl border border-outline/50 bg-surface/70 p-6">
@@ -88,26 +123,40 @@ export function SystemStatsCard({ stats, isLoading = false }: SystemStatsCardPro
         </div>
       </header>
 
-      <div className="mt-6 grid gap-4 sm:grid-cols-2">
-        <StatRow icon={<HardDrive className="h-5 w-5 text-success" />} label="RAM" value={memory.value} hint={memory.hint} />
-        <StatRow icon={<Gauge className="h-5 w-5 text-sky" />} label="Свободно" value={memoryFree} />
-        <StatRow icon={<Cpu className="h-5 w-5 text-primary" />} label="CPU" value={cpuValue} />
-        <StatRow icon={<Clock3 className="h-5 w-5 text-warning" />} label="Uptime" value={uptimeValue} />
+      {stats.summary ? (
+        <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <KpiCard icon={<Activity className="h-4 w-4 text-primary" />} label="Активные подключения" value={formatInteger(stats.summary.activeConnections)} />
+          <KpiCard icon={<Users className="h-4 w-4 text-sky" />} label="Онлайн пользователей" value={formatInteger(stats.summary.usersOnline)} />
+          <KpiCard icon={<Users className="h-4 w-4 text-success" />} label="Пользователи (всего)" value={formatInteger(stats.summary.totalUsers)} />
+          <KpiCard icon={<Server className="h-4 w-4 text-warning" />} label="Нод доступно" value={formatInteger(nodesOnlineOverride ?? stats.summary.nodesOnline)} />
+        </div>
+      ) : null}
+
+      <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <KpiCard icon={<HardDrive className="h-4 w-4 text-success" />} label="RAM" value={memory.value} hint={`Свободно ${memoryFree}`} />
+        <KpiCard icon={<Cpu className="h-4 w-4 text-primary" />} label="CPU" value={cpuValue} />
+        <KpiCard icon={<Clock3 className="h-4 w-4 text-warning" />} label="Uptime" value={renderUptime(totalUptimeSeconds)} />
+        <KpiCard
+          icon={<Wifi className="h-4 w-4 text-sky" />}
+          label="Трафик (реалтайм)"
+          value={stats.bandwidth ? formatBytes(stats.bandwidth.realtimeTotalBytes) : "нет данных"}
+          hint={stats.bandwidth ? `↓ ${formatBytes(stats.bandwidth.realtimeDownloadBytes)} · ↑ ${formatBytes(stats.bandwidth.realtimeUploadBytes)}` : undefined}
+        />
       </div>
     </section>
   );
 }
 
-function StatRow({ icon, label, value, hint }: { icon: ReactNode; label: string; value: string; hint?: string }) {
-  const isUnavailable = value === "нет данных";
+function KpiCard({ icon, label, value, hint }: { icon: ReactNode; label: string; value: ReactNode; hint?: string }) {
+  const isUnavailable = typeof value === "string" && value === "нет данных";
 
   return (
-    <div className="flex items-start gap-3 rounded-2xl border border-outline/40 bg-surfaceMuted/40 p-4">
-      <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-surface/60">{icon}</span>
-      <div className="space-y-1">
-        <p className="text-xs uppercase tracking-[0.32em] text-textMuted/70">{label}</p>
-        <p className={clsx("text-base font-semibold text-white", isUnavailable ? "text-textMuted" : undefined)}>{value}</p>
-        {hint ? <p className="text-xs text-textMuted">{hint}</p> : null}
+    <div className="flex items-center gap-3 rounded-2xl border border-outline/40 bg-surfaceMuted/40 p-3">
+      <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-surface/60">{icon}</span>
+      <div className="min-w-0">
+        <p className="text-[10px] uppercase tracking-[0.28em] text-textMuted/70">{label}</p>
+        <div className={clsx("truncate text-sm font-semibold text-white", isUnavailable ? "text-textMuted" : undefined)}>{value}</div>
+        {hint ? <p className="truncate text-[11px] text-textMuted">{hint}</p> : null}
       </div>
     </div>
   );
@@ -131,6 +180,11 @@ function formatBytes(bytes?: number | null): string {
   }
   const gigabytes = bytes / BYTES_IN_GB;
   return `${numberFormatter.format(gigabytes)} GB`;
+}
+
+function formatInteger(value?: number | null): string {
+  if (!Number.isFinite(value) || (value ?? 0) < 0) return "нет данных";
+  return new Intl.NumberFormat("ru-RU").format(value ?? 0);
 }
 
 function formatMemory(usedBytes?: number | null, totalBytes?: number | null, availableBytes?: number | null): {
@@ -177,6 +231,36 @@ function formatUptime(seconds?: number | null): string {
   }
   const minutes = Math.floor((totalSeconds % 3_600) / 60);
   return minutes > 0 ? `${minutes} мин` : `${Math.max(1, totalSeconds)} с`;
+}
+
+function pad2(n: number): string {
+  return n < 10 ? `0${n}` : String(n);
+}
+
+function renderUptime(totalSeconds?: number | null): ReactNode {
+  if (!Number.isFinite(totalSeconds) || (totalSeconds ?? 0) <= 0) {
+    return "нет данных";
+  }
+  const secAll = Math.floor(totalSeconds ?? 0);
+  const days = Math.floor(secAll / 86_400);
+  const hours = Math.floor((secAll % 86_400) / 3_600);
+  const minutes = Math.floor((secAll % 3_600) / 60);
+  const seconds = secAll % 60;
+
+  return (
+    <div className="flex items-center gap-2">
+      {days > 0 ? (
+        <span className="rounded bg-warning/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-warning">{days}д</span>
+      ) : null}
+      <div className="rounded-lg bg-surface/60 px-2 py-1 font-mono tabular-nums text-base leading-none text-white sm:text-lg">
+        <span>{pad2(hours)}</span>
+        <span className="mx-0.5 inline-block animate-pulse">:</span>
+        <span>{pad2(minutes)}</span>
+        <span className="mx-0.5 inline-block animate-pulse">:</span>
+        <span>{pad2(seconds)}</span>
+      </div>
+    </div>
+  );
 }
 
 function formatRelativeTime(timestamp?: string): string | null {

@@ -37,7 +37,7 @@ export function SalesChartCard({
             {subtitle ? <p className="text-sm text-textMuted">{subtitle}</p> : null}
           </div>
           <div className="inline-flex items-center gap-2 rounded-full border border-outline/40 bg-surfaceMuted/80 px-3 py-1 text-xs text-textMuted">
-            <span className="h-2 w-2 rounded-full bg-primary" />
+            <span className="h-2 w-2 rounded-full bg-primary animate-pulse" />
             последние 30 дней
           </div>
         </header>

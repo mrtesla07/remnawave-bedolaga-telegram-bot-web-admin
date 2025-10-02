@@ -42,3 +42,10 @@ class TicketPriorityUpdateRequest(BaseModel):
 class TicketReplyBlockRequest(BaseModel):
     permanent: bool = False
     until: Optional[datetime] = None
+
+
+class TicketReplyRequest(BaseModel):
+    message_text: str
+    media_type: Optional[str] = None
+    media_file_id: Optional[str] = None
+    media_caption: Optional[str] = None

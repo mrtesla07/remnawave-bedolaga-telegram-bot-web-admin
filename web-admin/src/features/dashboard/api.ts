@@ -40,6 +40,17 @@ interface TransactionListResponse {
 }
 
 interface RemnawaveSystemResponse {
+  system?: {
+    users_online?: number | string;
+    total_users?: number | string;
+    active_connections?: number | string;
+    nodes_online?: number | string;
+    users_last_day?: number | string;
+    users_last_week?: number | string;
+    users_never_online?: number | string;
+    total_user_traffic?: number | string;
+  };
+  users_by_status?: Record<string, number | string>;
   server_info?: {
     cpu_cores?: number | string;
     cpu_physical_cores?: number | string;
@@ -49,6 +60,20 @@ interface RemnawaveSystemResponse {
     memory_available?: number | string;
     uptime_seconds?: number | string;
   };
+  bandwidth?: {
+    realtime_download?: number | string;
+    realtime_upload?: number | string;
+    realtime_total?: number | string;
+  };
+  traffic_periods?: {
+    last_2_days?: { current?: number | string; previous?: number | string; difference?: string };
+    last_7_days?: { current?: number | string; previous?: number | string; difference?: string };
+    last_30_days?: { current?: number | string; previous?: number | string; difference?: string };
+    current_month?: { current?: number | string; previous?: number | string; difference?: string };
+    current_year?: { current?: number | string; previous?: number | string; difference?: string };
+  };
+  nodes_realtime?: Array<Record<string, unknown>>;
+  nodes_weekly?: Array<Record<string, unknown>>;
   last_updated?: string;
 }
 
@@ -261,8 +286,74 @@ export async function fetchRemnawaveSystem(): Promise<RemnawaveSystemStats> {
     uptimeSeconds: readNumber(info.uptime_seconds, 0),
   };
 
+  const system = data.system ?? {};
+  const summary = Object.keys(system).length
+    ? {
+        usersOnline: readNumber(system.users_online, 0),
+        totalUsers: readNumber(system.total_users, 0),
+        activeConnections: readNumber(system.active_connections, 0),
+        nodesOnline: readNumber(system.nodes_online, 0),
+        usersLastDay: readNumber(system.users_last_day, 0),
+        usersLastWeek: readNumber(system.users_last_week, 0),
+        usersNeverOnline: readNumber(system.users_never_online, 0),
+        totalUserTrafficBytes: readNumber(system.total_user_traffic, 0),
+      }
+    : undefined;
+
+  const usersByStatus = data.users_by_status
+    ? Object.fromEntries(
+        Object.entries(data.users_by_status).map(([k, v]) => [k, readNumber(v as number, 0)]),
+      )
+    : undefined;
+
+  const bw = data.bandwidth ?? {};
+  const bandwidth = Object.keys(bw).length
+    ? {
+        realtimeDownloadBytes: readNumber(bw.realtime_download, 0),
+        realtimeUploadBytes: readNumber(bw.realtime_upload, 0),
+        realtimeTotalBytes: readNumber(bw.realtime_total, 0),
+      }
+    : undefined;
+
+  const tp = data.traffic_periods ?? {};
+  const periods = Object.keys(tp).length
+    ? {
+        last2Days: {
+          current: readNumber(tp.last_2_days?.current, 0),
+          previous: readNumber(tp.last_2_days?.previous, 0),
+          difference: tp.last_2_days?.difference,
+        },
+        last7Days: {
+          current: readNumber(tp.last_7_days?.current, 0),
+          previous: readNumber(tp.last_7_days?.previous, 0),
+          difference: tp.last_7_days?.difference,
+        },
+        last30Days: {
+          current: readNumber(tp.last_30_days?.current, 0),
+          previous: readNumber(tp.last_30_days?.previous, 0),
+          difference: tp.last_30_days?.difference,
+        },
+        currentMonth: {
+          current: readNumber(tp.current_month?.current, 0),
+          previous: readNumber(tp.current_month?.previous, 0),
+          difference: tp.current_month?.difference,
+        },
+        currentYear: {
+          current: readNumber(tp.current_year?.current, 0),
+          previous: readNumber(tp.current_year?.previous, 0),
+          difference: tp.current_year?.difference,
+        },
+      }
+    : undefined;
+
   return {
     server,
+    summary,
+    usersByStatus,
+    bandwidth,
+    trafficPeriods: periods,
+    nodesRealtime: data.nodes_realtime,
+    nodesWeekly: data.nodes_weekly,
     lastUpdated: typeof data.last_updated === "string" ? data.last_updated : undefined,
   };
 }

@@ -39,7 +39,7 @@ export function UsersFilters({ initialSearch, initialStatus, onChange }: UsersFi
           />
         </div>
         <select
-          className="w-full rounded-2xl border border-outline/40 bg-surfaceMuted/60 px-3 py-2 text-sm text-textMuted focus:border-primary/70 focus:outline-none focus:ring-2 focus:ring-primary/30 lg:w-52"
+          className="w-full rounded-2xl border border-outline/40 bg-surface/70 px-3 py-2 text-sm text-white focus:border-primary/70 focus:outline-none focus:ring-2 focus:ring-primary/30 lg:w-52"
           value={status}
           onChange={(event) => setStatus(event.target.value)}
         >

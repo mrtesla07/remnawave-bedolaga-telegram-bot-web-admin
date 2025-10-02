@@ -27,6 +27,7 @@ export function DashboardPage() {
   const overview = overviewQuery.data ?? mockOverviewStats;
   const revenuePoints = revenueQuery.isError ? mockRevenueTrend : revenueQuery.data ?? [];
   const servers = serversQuery.isError ? mockServers : serversQuery.data ?? [];
+  const nodesOnlineCount = servers.filter((s) => s.status === "online").length;
 
   const overviewMetrics = useMemo(() => {
     const { users, subscriptions, payments, support } = overview;
@@ -114,7 +115,9 @@ const primaryServer = servers[0] ?? null;
       {errors.length > 0 ? (
         <div className="space-y-3">
           {errors.map((error) => (
-            <Alert key={error.id} tone={error.tone} title={error.message} />
+            <div key={error.id}>
+              <Alert tone={error.tone} title={error.message} />
+            </div>
           ))}
         </div>
       ) : null}
@@ -124,6 +127,7 @@ const primaryServer = servers[0] ?? null;
       <SystemStatsCard
         stats={systemStats}
         isLoading={systemQuery.isLoading && !systemQuery.data}
+        nodesOnlineOverride={nodesOnlineCount}
       />
 
       <QuickActions actions={mockQuickActions} />
@@ -148,7 +152,9 @@ const primaryServer = servers[0] ?? null;
           <div className="grid gap-4 xl:grid-cols-2">
             {primaryServer ? <ServerCard server={primaryServer} layout="wide" /> : null}
             {otherServers.map((server) => (
-              <ServerCard key={server.id} server={server} />
+              <div key={server.id}>
+                <ServerCard server={server} />
+              </div>
             ))}
           </div>
         )}

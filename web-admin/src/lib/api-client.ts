@@ -10,16 +10,13 @@ export const apiClient = axios.create({
 apiClient.interceptors.request.use((config) => {
   const { token, apiBaseUrl } = authStore.getState();
   config.baseURL = apiBaseUrl || defaultApiBaseUrl;
+  const headers = { ...(config.headers || {}) } as Record<string, string>;
   if (token) {
-    config.headers = {
-      ...config.headers,
-      Authorization: `Bearer ${token}`,
-    };
+    headers.Authorization = `Bearer ${token}`;
+    headers["X-API-Key"] = token;
   }
-  config.headers = {
-    "X-Requested-With": "BedolagaAdminUI",
-    ...config.headers,
-  };
+  headers["X-Requested-With"] = "BedolagaAdminUI";
+  config.headers = headers;
   return config;
 });
 

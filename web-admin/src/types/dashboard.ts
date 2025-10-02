@@ -82,7 +82,48 @@ export interface RemnawaveSystemInfo {
   uptimeSeconds: number;
 }
 
+export interface RemnawaveSystemSummary {
+  usersOnline: number;
+  totalUsers: number;
+  activeConnections: number;
+  nodesOnline: number;
+  usersLastDay: number;
+  usersLastWeek: number;
+  usersNeverOnline: number;
+  totalUserTrafficBytes: number;
+}
+
+export interface RemnawaveUsersByStatus {
+  [status: string]: number;
+}
+
+export interface RemnawaveBandwidth {
+  realtimeDownloadBytes: number;
+  realtimeUploadBytes: number;
+  realtimeTotalBytes: number;
+}
+
+export interface RemnawaveTrafficPeriod {
+  current: number;
+  previous: number;
+  difference?: string;
+}
+
+export interface RemnawaveTrafficPeriods {
+  last2Days: RemnawaveTrafficPeriod;
+  last7Days: RemnawaveTrafficPeriod;
+  last30Days: RemnawaveTrafficPeriod;
+  currentMonth: RemnawaveTrafficPeriod;
+  currentYear: RemnawaveTrafficPeriod;
+}
+
 export interface RemnawaveSystemStats {
   server: RemnawaveSystemInfo;
+  summary?: RemnawaveSystemSummary;
+  usersByStatus?: RemnawaveUsersByStatus;
+  bandwidth?: RemnawaveBandwidth;
+  trafficPeriods?: RemnawaveTrafficPeriods;
+  nodesRealtime?: Array<Record<string, unknown>>;
+  nodesWeekly?: Array<Record<string, unknown>>;
   lastUpdated?: string;
 }

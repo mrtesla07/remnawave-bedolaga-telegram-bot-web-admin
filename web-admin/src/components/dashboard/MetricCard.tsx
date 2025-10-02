@@ -1,10 +1,11 @@
 ﻿import type { LucideIcon } from "lucide-react";
+import type { ReactNode } from "react";
 import { ArrowDownRight, ArrowUpRight } from "lucide-react";
 import { clsx } from "clsx";
 
 interface MetricCardProps {
   title: string;
-  value: string;
+  value: ReactNode;
   caption?: string;
   delta?: number;
   deltaLabel?: string;

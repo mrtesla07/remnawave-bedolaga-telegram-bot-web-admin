@@ -2,8 +2,16 @@
 import { MainLayout } from "@/layouts/MainLayout";
 import { DashboardPage } from "@/pages/dashboard/DashboardPage";
 import { FinancePage } from "@/pages/finance/FinancePage";
+import { StatisticsPage } from "@/pages/statistics/StatisticsPage";
+import { HealthPage } from "@/pages/health/HealthPage";
+import { SettingsPage } from "@/pages/settings/SettingsPage";
+import { TokensPage } from "@/pages/tokens/TokensPage";
 import { UsersPage } from "@/pages/users/UsersPage";
 import { PlaceholderPage } from "@/pages/PlaceholderPage";
+import { AuthPage } from "@/pages/auth/AuthPage";
+import { TicketsPage } from "@/pages/tickets/TicketsPage";
+import { SubscriptionsPage } from "@/pages/subscriptions/SubscriptionsPage";
+import { PromocodesPage } from "@/pages/promocodes/PromocodesPage";
 
 const placeholderRoutes = [
   { path: "statistics", title: "Статистика", description: "Метрики продукта и воронок продаж." },
@@ -26,6 +34,7 @@ const router = createBrowserRouter([
     path: "/",
     element: <MainLayout />,
     children: [
+      { path: "auth", element: <AuthPage /> },
       {
         index: true,
         element: <DashboardPage />,
@@ -35,13 +44,43 @@ const router = createBrowserRouter([
         element: <FinancePage />,
       },
       {
+        path: "statistics",
+        element: <StatisticsPage />,
+      },
+      {
         path: "users",
         element: <UsersPage />,
       },
-      ...placeholderRoutes.map((route) => ({
-        path: route.path,
-        element: <PlaceholderPage title={route.title} description={route.description} />,
-      })),
+      {
+        path: "subscriptions",
+        element: <SubscriptionsPage />,
+      },
+      {
+        path: "tickets",
+        element: <TicketsPage />,
+      },
+      {
+        path: "promocodes",
+        element: <PromocodesPage />,
+      },
+      {
+        path: "health",
+        element: <HealthPage />,
+      },
+      {
+        path: "settings",
+        element: <SettingsPage />,
+      },
+      {
+        path: "tokens",
+        element: <TokensPage />,
+      },
+      ...placeholderRoutes
+        .filter((route) => route.path !== "subscriptions" && route.path !== "promocodes" && route.path !== "tickets")
+        .map((route) => ({
+          path: route.path,
+          element: <PlaceholderPage title={route.title} description={route.description} />,
+        })),
       {
         path: "*",
         element: <Navigate to="/" replace />,

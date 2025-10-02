@@ -3,7 +3,7 @@ import clsx from "clsx";
 import { SignalHigh, Thermometer, Timer, Wifi } from "lucide-react";
 import { Area, AreaChart, ResponsiveContainer } from "recharts";
 import type { ServerCardData } from "@/types/dashboard";
-import { countryCodeToFlag } from "@/utils/flags";
+import { countryCodeToFlag, countryCodeToFlagUrl } from "@/utils/flags";
 
 interface ServerCardProps {
   server: ServerCardData;
@@ -52,6 +52,20 @@ export function ServerCard({ server, layout = "compact" }: ServerCardProps) {
       ? `${server.uptimePercent.toFixed(1)}%`
       : undefined;
 
+  const providerLabel = /^[A-Za-z]{2}$/i.test(server.provider.trim())
+    ? countryCodeToFlag(server.provider)
+    : server.provider;
+
+  const locationLabel = (() => {
+    const match = server.location.match(/^(.*?)(?:,|\s)\s*([A-Za-z]{2})$/);
+    if (match) {
+      return `${match[1].trim()} ${countryCodeToFlag(match[2])}`;
+    }
+    return server.location;
+  })();
+
+  const isoCode = (server.countryCode || "").toUpperCase();
+
   const detailBody = (
     <div className={clsx("relative flex flex-col gap-5", layout === "wide" ? "xl:flex-row xl:gap-10" : undefined)}>
       <div className="grid flex-1 gap-4 sm:grid-cols-2">
@@ -91,17 +105,33 @@ export function ServerCard({ server, layout = "compact" }: ServerCardProps) {
     )}>
       <header className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-4">
-          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-surfaceMuted/80 text-2xl">
-            {countryCodeToFlag(server.countryCode)}
+          <div className="relative flex h-12 w-12 items-center justify-center overflow-hidden rounded-2xl bg-surfaceMuted/80 text-2xl">
+            {isoCode ? (
+              <img
+                src={countryCodeToFlagUrl(isoCode, "svg")}
+                alt={isoCode}
+                className="h-full w-full object-cover"
+                onError={(e) => {
+                  (e.currentTarget as HTMLImageElement).style.display = "none";
+                }}
+              />
+            ) : (
+              <span role="img" aria-label={isoCode}>{countryCodeToFlag(server.countryCode)}</span>
+            )}
+            {isoCode ? (
+              <span className="absolute bottom-1 right-1 rounded border border-outline/40 bg-background/80 px-1 py-0.5 text-[10px] font-semibold uppercase leading-none text-textMuted">
+                {isoCode}
+              </span>
+            ) : null}
           </div>
           <div>
             <p className="text-lg font-semibold text-white">{server.name}</p>
-            <p className="text-sm text-textMuted">{server.location}</p>
+            <p className="text-sm text-textMuted">{locationLabel}</p>
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <span className={clsx("rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-wide", status.color)}>{status.label}</span>
-          <span className="text-xs text-textMuted">{server.provider}</span>
+          <span className="text-xs text-textMuted">{providerLabel}</span>
         </div>
       </header>
 

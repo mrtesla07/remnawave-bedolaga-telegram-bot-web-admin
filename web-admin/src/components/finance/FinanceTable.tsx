@@ -2,6 +2,7 @@
 import { ru } from "date-fns/locale";
 import clsx from "clsx";
 import type { Transaction } from "@/types/transactions";
+import { useUserDetails } from "@/features/users/queries";
 
 interface FinanceTableProps {
   items: Transaction[];
@@ -47,13 +48,13 @@ export function FinanceTable({ items, isLoading }: FinanceTableProps) {
           {items.map((tx) => (
             <tr key={tx.id} className="bg-surface/60">
               <td className="px-4 py-3 font-medium text-slate-100">{tx.id}</td>
-              <td className="px-4 py-3 text-textMuted">{tx.user_id}</td>
-              <td className="px-4 py-3 text-textMuted">{mapType(tx.type)}</td>
+              <td className="px-4 py-3 text-textMuted"><UserCell userId={tx.user_id} /></td>
+              <td className="px-4 py-3 text-textMuted">{mapType(tx.type, tx)}</td>
               <td className="px-4 py-3 text-textMuted">
                 <span className={clsx("font-semibold", tx.amount_rubles < 0 ? "text-danger" : "text-success")}>{tx.amount_rubles.toFixed(2)} ₽</span>
               </td>
               <td className="px-4 py-3 text-textMuted">{tx.is_completed ? "Завершено" : "В ожидании"}</td>
-              <td className="px-4 py-3 text-textMuted">{tx.payment_method || "—"}</td>
+              <td className="px-4 py-3 text-textMuted">{renderPaymentMethod(tx)}</td>
               <td className="px-4 py-3 text-textMuted">{formatDate(tx.created_at)}</td>
             </tr>
           ))}
@@ -63,10 +64,10 @@ export function FinanceTable({ items, isLoading }: FinanceTableProps) {
   );
 }
 
-function mapType(type: string) {
+function mapType(type: string, tx?: Transaction) {
   switch (type) {
     case "deposit":
-      return "Пополнение";
+      return isAdminTopup(tx) ? "Пополнение (админ)" : "Пополнение";
     case "withdrawal":
       return "Списание";
     case "subscription_payment":
@@ -78,4 +79,36 @@ function mapType(type: string) {
     default:
       return type;
   }
+}
+
+function isAdminTopup(tx?: Transaction): boolean {
+  if (!tx) return false;
+  const method = (tx.payment_method || "").toLowerCase();
+  if (!method) return true;
+  return ["admin", "manual", "panel", "web-admin", "operator"].includes(method);
+}
+
+function renderPaymentMethod(tx: Transaction): string {
+  const method = (tx.payment_method || "").toLowerCase();
+  if (!method) return "Администратор";
+  if (["admin", "manual", "panel", "web-admin", "operator"].includes(method)) return "Администратор";
+  if (method === "yookassa") return "ЮKassa";
+  if (method === "cryptobot" || method === "crypto_bot") return "CryptoBot";
+  if (method === "telegram_stars" || method === "stars") return "Telegram Stars";
+  if (method === "pal24") return "Pal24";
+  if (method === "mulenpay") return "MulenPay";
+  return tx.payment_method || "—";
+}
+
+function UserCell({ userId }: { userId: number }) {
+  const query = useUserDetails(userId);
+  if (query.isLoading) {
+    return <span className="inline-flex items-center gap-2 text-xs text-textMuted"><span className="h-2 w-2 animate-pulse rounded-full bg-primary/60" /> ID: {userId}</span>;
+  }
+  if (query.isError || !query.data) {
+    return <span className="text-textMuted">ID: {userId}</span>;
+  }
+  const user = query.data;
+  const username = user.username ? `@${user.username}` : "—";
+  return <span className="text-slate-100">{username} <span className="text-textMuted">(tg: {user.telegram_id})</span></span>;
 }

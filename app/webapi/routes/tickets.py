@@ -4,10 +4,14 @@ from datetime import datetime
 from typing import Any, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Security, status
+from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database.crud.ticket import TicketCRUD
 from app.database.models import Ticket, TicketMessage, TicketStatus
+from app.config import settings
+from sqlalchemy import select
+import aiohttp
 
 from ..dependencies import get_db_session, require_api_token
 from ..schemas.tickets import (
@@ -16,6 +20,7 @@ from ..schemas.tickets import (
     TicketReplyBlockRequest,
     TicketResponse,
     TicketStatusUpdateRequest,
+    TicketReplyRequest,
 )
 
 router = APIRouter()
@@ -183,3 +188,90 @@ async def clear_reply_block(
 
     ticket = await TicketCRUD.get_ticket_by_id(db, ticket_id, load_messages=True, load_user=False)
     return _serialize_ticket(ticket, include_messages=True)
+
+
+@router.post("/{ticket_id}/reply", response_model=TicketResponse)
+async def reply_to_ticket(
+    ticket_id: int,
+    payload: TicketReplyRequest,
+    _: Any = Security(require_api_token),
+    db: AsyncSession = Depends(get_db_session),
+) -> TicketResponse:
+    from app.database.crud.ticket import TicketMessageCRUD
+
+    ticket = await TicketCRUD.get_ticket_by_id(db, ticket_id, load_messages=False)
+    if not ticket:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Ticket not found")
+
+    # Админ ответ — помечаем is_from_admin=True
+    await TicketMessageCRUD.add_message(
+        db,
+        ticket_id=ticket_id,
+        user_id=ticket.user_id,
+        message_text=payload.message_text,
+        is_from_admin=True,
+        media_type=payload.media_type,
+        media_file_id=payload.media_file_id,
+        media_caption=payload.media_caption,
+    )
+
+    # Вернём обновлённый тикет с сообщениями
+    ticket = await TicketCRUD.get_ticket_by_id(db, ticket_id, load_messages=True, load_user=False)
+    return _serialize_ticket(ticket, include_messages=True)
+
+
+@router.get("/{ticket_id}/messages/{message_id}/media")
+async def get_ticket_message_media(
+    ticket_id: int,
+    message_id: int,
+    _: Any = Security(require_api_token),
+    db: AsyncSession = Depends(get_db_session),
+):
+    # Validate message belongs to ticket and has media
+    result = await db.execute(
+        select(TicketMessage).where(
+            TicketMessage.id == message_id,
+            TicketMessage.ticket_id == ticket_id,
+        )
+    )
+    message = result.scalar_one_or_none()
+    if not message or not getattr(message, "has_media", False) or not getattr(message, "media_file_id", None):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Media not found")
+
+    bot_token = getattr(settings, "BOT_TOKEN", None)
+    if not bot_token:
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "Bot token not configured")
+
+    api_base = f"https://api.telegram.org/bot{bot_token}"
+    file_api = f"{api_base}/getFile?file_id={message.media_file_id}"
+
+    session_timeout = aiohttp.ClientTimeout(total=30)
+    async with aiohttp.ClientSession(timeout=session_timeout) as sess:
+        async with sess.get(file_api) as resp:
+            if resp.status != 200:
+                raise HTTPException(status.HTTP_502_BAD_GATEWAY, "Failed to resolve media")
+            payload = await resp.json()
+            file_path = payload.get("result", {}).get("file_path")
+            if not file_path:
+                raise HTTPException(status.HTTP_404_NOT_FOUND, "File path not found")
+
+        file_url = f"https://api.telegram.org/file/bot{bot_token}/{file_path}"
+        upstream = await sess.get(file_url)
+        if upstream.status != 200:
+            await upstream.release()
+            raise HTTPException(status.HTTP_502_BAD_GATEWAY, "Failed to fetch media")
+
+        headers = {}
+        ct = upstream.headers.get("Content-Type")
+        if ct:
+            headers["Content-Type"] = ct
+
+        async def streamer():
+            try:
+                async for chunk in upstream.content.iter_chunked(64 * 1024):
+                    if chunk:
+                        yield chunk
+            finally:
+                await upstream.release()
+
+        return StreamingResponse(streamer(), headers=headers)
