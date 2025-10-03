@@ -272,8 +272,8 @@ async def create_cryptobot_payments_table():
                 logger.error(f"Неподдерживаемый тип БД для создания таблицы: {db_type}")
                 return False
             
-            await conn.execute(text(create_sql))
-            logger.info("Таблица cryptobot_payments успешно создана")
+                await conn.execute(text(create_sql))
+                logger.info("Таблица cryptobot_payments успешно создана")
             return True
             
     except Exception as e:
@@ -2036,10 +2036,62 @@ async def ensure_default_web_api_token() -> bool:
         logger.error(f"❌ Ошибка создания дефолтного веб-API токена: {error}")
         return False
 
+async def create_admin_users_table() -> bool:
+    table_exists = await check_table_exists("admin_users")
+    if table_exists:
+        logger.info("ℹ️ Таблица admin_users уже существует")
+        return True
+
+    try:
+        async with engine.begin() as conn:
+            db_type = await get_database_type()
+            if db_type == "sqlite":
+                create_sql = """
+                CREATE TABLE admin_users (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    username VARCHAR(64) NOT NULL UNIQUE,
+                    password_hash VARCHAR(255) NOT NULL,
+                    email VARCHAR(255) NULL,
+                    name VARCHAR(255) NULL,
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                );
+                """
+            elif db_type == "postgresql":
+                create_sql = """
+                CREATE TABLE admin_users (
+                    id SERIAL PRIMARY KEY,
+                    username VARCHAR(64) NOT NULL UNIQUE,
+                    password_hash VARCHAR(255) NOT NULL,
+                    email VARCHAR(255) NULL,
+                    name VARCHAR(255) NULL,
+                    created_at TIMESTAMP DEFAULT NOW(),
+                    updated_at TIMESTAMP DEFAULT NOW()
+                );
+                """
+            else:
+                create_sql = """
+                CREATE TABLE admin_users (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    username VARCHAR(64) NOT NULL UNIQUE,
+                    password_hash VARCHAR(255) NOT NULL,
+                    email VARCHAR(255) NULL,
+                    name VARCHAR(255) NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                );
+                """
+
+            await conn.execute(text(create_sql))
+            logger.info("✅ Таблица admin_users создана")
+            return True
+
+    except Exception as error:
+        logger.error(f"Ошибка создания таблицы admin_users: {error}")
+        return False
 
 async def run_universal_migration():
     logger.info("=== НАЧАЛО УНИВЕРСАЛЬНОЙ МИГРАЦИИ ===")
-    
     try:
         db_type = await get_database_type()
         logger.info(f"Тип базы данных: {db_type}")
@@ -2061,6 +2113,13 @@ async def run_universal_migration():
             logger.info("✅ Таблица web_api_tokens готова")
         else:
             logger.warning("⚠️ Проблемы с таблицей web_api_tokens")
+
+        logger.info("=== СОЗДАНИЕ ТАБЛИЦЫ ADMIN_USERS ===")
+        admin_users_ready = await create_admin_users_table()
+        if admin_users_ready:
+            logger.info("✅ Таблица admin_users готова")
+        else:
+            logger.warning("⚠️ Проблемы с таблицей admin_users")
 
         logger.info("=== ПРОВЕРКА БАЗОВЫХ ТОКЕНОВ ВЕБ-API ===")
         default_token_ready = await ensure_default_web_api_token()
@@ -2278,8 +2337,21 @@ async def run_universal_migration():
                 logger.info("✅ Дубликаты подписок исправлены")
                 return True
                 
-    except Exception as e:
-        logger.error(f"=== ОШИБКА ВЫПОЛНЕНИЯ МИГРАЦИИ: {e} ===")
+        logger.info("=== ПРОВЕРКА БАЛАНСОВ ПОЛЬЗОВАТЕЛЕЙ ===")
+        balance_ready = await ensure_users_balance_columns()
+        if balance_ready:
+            logger.info("✅ Колонки баланса пользователей готовы")
+        else:
+            logger.warning("⚠️ Проблемы с колонками баланса пользователей")
+
+        transactions_ready = await ensure_transactions_columns()
+        if transactions_ready:
+            logger.info("✅ Таблица transactions актуальна")
+        else:
+            logger.warning("⚠️ Проблемы с обновлением таблицы transactions")
+                
+    except Exception as error:
+        logger.error(f"=== ОШИБКА МИГРАЦИИ: {error}")
         return False
 
 async def check_migration_status():
@@ -2399,3 +2471,36 @@ async def check_migration_status():
     except Exception as e:
         logger.error(f"Ошибка проверки статуса миграций: {e}")
         return None
+
+async def ensure_transactions_columns() -> bool:
+    logger.info("=== ОБНОВЛЕНИЕ ТАБЛИЦЫ TRANSACTIONS ===")
+    try:
+        async with engine.begin() as conn:
+            db_type = await get_database_type()
+
+            columns_to_add = [
+                ("status", "VARCHAR(50)"),
+                ("currency", "VARCHAR(10)"),
+            ]
+
+            for column_name, column_type in columns_to_add:
+                if await check_column_exists("transactions", column_name):
+                    continue
+
+                logger.info("Добавляем колонку %s", column_name)
+                if db_type == "sqlite":
+                    await conn.execute(text(f"ALTER TABLE transactions ADD COLUMN {column_name} {column_type}"))
+                elif db_type == "postgresql":
+                    await conn.execute(text(f"ALTER TABLE transactions ADD COLUMN IF NOT EXISTS {column_name} {column_type}"))
+                elif db_type == "mysql":
+                    await conn.execute(text(f"ALTER TABLE transactions ADD COLUMN {column_name} {column_type}"))
+                else:
+                    logger.error("Неподдерживаемый тип БД для обновления transactions: %s", db_type)
+                    return False
+
+        logger.info("✅ Таблица transactions обновлена")
+        return True
+
+    except Exception as error:
+        logger.error("Ошибка обновления таблицы transactions: %s", error)
+        return False

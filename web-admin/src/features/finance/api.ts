@@ -12,8 +12,12 @@ export async function fetchTransactions(params: TransactionsQuery = {}): Promise
       type: params.type || undefined,
       payment_method: params.payment_method || undefined,
       is_completed: params.is_completed,
+      status: params.status || undefined,
       date_from: params.date_from || undefined,
       date_to: params.date_to || undefined,
+      amount_min: params.amount_min || undefined,
+      amount_max: params.amount_max || undefined,
+      currency: params.currency || undefined,
     },
   });
   return response.data;

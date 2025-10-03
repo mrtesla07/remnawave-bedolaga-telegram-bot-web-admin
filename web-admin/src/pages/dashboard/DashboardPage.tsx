@@ -132,11 +132,12 @@ const primaryServer = servers[0] ?? null;
 
       <QuickActions actions={mockQuickActions} />
 
-      <section className="space-y-4">
+      <section className="card glow-border overflow-hidden rounded-3xl border border-outline/50 bg-surface/70 p-6">
         <header className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h2 className="text-xl font-semibold text-white">Активные серверы</h2>
-            <p className="text-sm text-textMuted">Мониторинг RemnaWave в реальном времени</p>
+            <p className="text-xs uppercase tracking-[0.32em] text-textMuted/70">RemnaWave</p>
+            <h2 className="text-lg font-semibold text-white">Активные серверы</h2>
+            <p className="text-sm text-textMuted">Мониторинг в реальном времени</p>
           </div>
           <div className="flex flex-wrap items-center gap-2 text-xs text-textMuted">
             <span className="rounded-full border border-outline/40 px-3 py-1 uppercase tracking-widest">online</span>
@@ -144,20 +145,22 @@ const primaryServer = servers[0] ?? null;
             <span className="rounded-full border border-outline/40 px-3 py-1 uppercase tracking-widest">offline</span>
           </div>
         </header>
-        {servers.length === 0 ? (
-          <div className="rounded-3xl border border-outline/40 bg-surface/60 p-8 text-center text-textMuted">
-            Нет данных по серверам.
-          </div>
-        ) : (
-          <div className="grid gap-4 xl:grid-cols-2">
-            {primaryServer ? <ServerCard server={primaryServer} layout="wide" /> : null}
-            {otherServers.map((server) => (
-              <div key={server.id}>
-                <ServerCard server={server} />
-              </div>
-            ))}
-          </div>
-        )}
+        <div className="mt-4">
+          {servers.length === 0 ? (
+            <div className="rounded-2xl border border-outline/40 bg-surface/60 p-8 text-center text-textMuted">
+              Нет данных по серверам.
+            </div>
+          ) : (
+            <div className="grid gap-4 xl:grid-cols-2">
+              {primaryServer ? <ServerCard server={primaryServer} layout="wide" /> : null}
+              {otherServers.map((server) => (
+                <div key={server.id}>
+                  <ServerCard server={server} />
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       </section>
     </div>
   );

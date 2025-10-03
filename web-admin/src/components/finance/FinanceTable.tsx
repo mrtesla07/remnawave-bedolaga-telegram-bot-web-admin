@@ -41,22 +41,13 @@ export function FinanceTable({ items, isLoading }: FinanceTableProps) {
             <th className="px-4 py-3 text-left">Сумма</th>
             <th className="px-4 py-3 text-left">Статус</th>
             <th className="px-4 py-3 text-left">Метод оплаты</th>
+            <th className="px-4 py-3 text-left">Валюта</th>
             <th className="px-4 py-3 text-left">Создано</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-outline/40">
           {items.map((tx) => (
-            <tr key={tx.id} className="bg-surface/60">
-              <td className="px-4 py-3 font-medium text-slate-100">{tx.id}</td>
-              <td className="px-4 py-3 text-textMuted"><UserCell userId={tx.user_id} /></td>
-              <td className="px-4 py-3 text-textMuted">{mapType(tx.type, tx)}</td>
-              <td className="px-4 py-3 text-textMuted">
-                <span className={clsx("font-semibold", tx.amount_rubles < 0 ? "text-danger" : "text-success")}>{tx.amount_rubles.toFixed(2)} ₽</span>
-              </td>
-              <td className="px-4 py-3 text-textMuted">{tx.is_completed ? "Завершено" : "В ожидании"}</td>
-              <td className="px-4 py-3 text-textMuted">{renderPaymentMethod(tx)}</td>
-              <td className="px-4 py-3 text-textMuted">{formatDate(tx.created_at)}</td>
-            </tr>
+            <TransactionRow key={tx.id} transaction={tx} />
           ))}
         </tbody>
       </table>
@@ -98,6 +89,61 @@ function renderPaymentMethod(tx: Transaction): string {
   if (method === "pal24") return "Pal24";
   if (method === "mulenpay") return "MulenPay";
   return tx.payment_method || "—";
+}
+
+function renderStatus(tx: Transaction): string {
+  if (tx.status) {
+    switch (tx.status) {
+      case "pending":
+        return "В ожидании";
+      case "failed":
+      case "canceled":
+      case "cancelled":
+        return "Отменено";
+      case "processing":
+        return "Обработка";
+      case "completed":
+      case "succeeded":
+      case "success":
+        return "Завершено";
+      default:
+        return tx.status;
+    }
+  }
+  return tx.is_completed ? "Завершено" : "В ожидании";
+}
+
+function TransactionRow({ transaction }: { transaction: Transaction }) {
+  const userCell = useUserDetails(transaction.user_id ?? null);
+  return (
+    <tr className="bg-surface/60">
+      <td className="px-4 py-3 font-medium text-slate-100">{transaction.id}</td>
+      <td className="px-4 py-3 text-textMuted">
+        {userCell.isLoading ? (
+          <span className="inline-flex items-center gap-2 text-xs text-textMuted">
+            <span className="h-2 w-2 animate-pulse rounded-full bg-primary/60" /> ID: {transaction.user_id}
+          </span>
+        ) : userCell.isError || !userCell.data ? (
+          <span className="text-textMuted">ID: {transaction.user_id}</span>
+        ) : (
+          <span className="text-slate-100">
+            {userCell.data.username ? `@${userCell.data.username}` : "—"}
+            <span className="text-textMuted"> (tg: {userCell.data.telegram_id})</span>
+          </span>
+        )}
+      </td>
+      <td className="px-4 py-3 text-textMuted">{mapType(transaction.type, transaction)}</td>
+      <td className="px-4 py-3 text-textMuted">
+        <span className={clsx("font-semibold", transaction.amount_rubles < 0 ? "text-danger" : "text-success")}>
+          {transaction.amount_rubles.toFixed(2)} ₽
+        </span>
+      </td>
+      <td className="px-4 py-3 text-textMuted">{renderStatus(transaction)}</td>
+      <td className="px-4 py-3 text-textMuted">{renderPaymentMethod(transaction)}</td>
+      <td className="px-4 py-3 text-textMuted">{transaction.currency || "RUB"}</td>
+      <td className="px-4 py-3 text-textMuted">{formatDate(transaction.created_at)}</td>
+    </tr>
+  );
 }
 
 function UserCell({ userId }: { userId: number }) {

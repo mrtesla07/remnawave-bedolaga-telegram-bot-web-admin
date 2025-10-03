@@ -360,7 +360,7 @@ export function UserDetailsDrawer({ user, isOpen, onClose }: UserDetailsDrawerPr
             </div>
           </div>
         </div>
-      </div>
+          </div>
     </div>
   );
 }

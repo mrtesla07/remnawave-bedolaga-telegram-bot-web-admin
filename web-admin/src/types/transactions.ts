@@ -14,6 +14,8 @@ export interface Transaction {
   description?: string | null;
   payment_method?: string | null;
   external_id?: string | null;
+  currency?: string | null;
+  status?: string | null;
   is_completed: boolean;
   created_at: string;
   completed_at?: string | null;
@@ -33,6 +35,10 @@ export interface TransactionsQuery {
   type?: string;
   payment_method?: string;
   is_completed?: boolean;
+  status?: string;
   date_from?: string;
   date_to?: string;
+  amount_min?: number;
+  amount_max?: number;
+  currency?: string;
 }

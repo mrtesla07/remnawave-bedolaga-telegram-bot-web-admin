@@ -1,4 +1,6 @@
 ﻿import { createBrowserRouter, Navigate, RouterProvider } from "react-router-dom";
+import type { ReactNode } from "react";
+import { useAuthStore } from "@/store/auth-store";
 import { MainLayout } from "@/layouts/MainLayout";
 import { DashboardPage } from "@/pages/dashboard/DashboardPage";
 import { FinancePage } from "@/pages/finance/FinancePage";
@@ -12,6 +14,14 @@ import { AuthPage } from "@/pages/auth/AuthPage";
 import { TicketsPage } from "@/pages/tickets/TicketsPage";
 import { SubscriptionsPage } from "@/pages/subscriptions/SubscriptionsPage";
 import { PromocodesPage } from "@/pages/promocodes/PromocodesPage";
+import { AdminProfilePage } from "@/pages/profile/AdminProfilePage";
+import FaqApiPage from "@/pages/faq/FaqApiPage";
+import BroadcastsPage from "@/pages/campaigns/BroadcastsPage";
+import RemnaWavePage from "@/pages/remnawave/RemnaWavePage";
+import LogsPage from "@/pages/logs/LogsPage";
+import BackupsPage from "@/pages/backups/BackupsPage";
+import SecurityPage from "@/pages/security/SecurityPage";
+import NotificationsPage from "@/pages/notifications/NotificationsPage";
 
 const placeholderRoutes = [
   { path: "statistics", title: "Статистика", description: "Метрики продукта и воронок продаж." },
@@ -29,64 +39,49 @@ const placeholderRoutes = [
   { path: "notifications", title: "Уведомления", description: "Центр управления уведомлениями." },
 ];
 
+function RequireAuth({ children }: { children: ReactNode }) {
+  const { jwtToken } = useAuthStore.getState();
+  if (!jwtToken) return <Navigate to="/auth" replace />;
+  return children;
+}
+
 const router = createBrowserRouter([
+  { path: "/auth", element: <AuthPage /> },
   {
     path: "/",
-    element: <MainLayout />,
+    element: (
+      <RequireAuth>
+        <MainLayout />
+      </RequireAuth>
+    ),
     children: [
-      { path: "auth", element: <AuthPage /> },
-      {
-        index: true,
-        element: <DashboardPage />,
-      },
-      {
-        path: "finance",
-        element: <FinancePage />,
-      },
-      {
-        path: "statistics",
-        element: <StatisticsPage />,
-      },
-      {
-        path: "users",
-        element: <UsersPage />,
-      },
-      {
-        path: "subscriptions",
-        element: <SubscriptionsPage />,
-      },
-      {
-        path: "tickets",
-        element: <TicketsPage />,
-      },
-      {
-        path: "promocodes",
-        element: <PromocodesPage />,
-      },
-      {
-        path: "health",
-        element: <HealthPage />,
-      },
-      {
-        path: "settings",
-        element: <SettingsPage />,
-      },
-      {
-        path: "tokens",
-        element: <TokensPage />,
-      },
+      { index: true, element: <DashboardPage /> },
+      { path: "finance", element: <FinancePage /> },
+      { path: "statistics", element: <StatisticsPage /> },
+      { path: "users", element: <UsersPage /> },
+      { path: "subscriptions", element: <SubscriptionsPage /> },
+      { path: "tickets", element: <TicketsPage /> },
+      { path: "promocodes", element: <PromocodesPage /> },
+      { path: "campaigns", element: <BroadcastsPage /> },
+      { path: "health", element: <HealthPage /> },
+      { path: "settings", element: <SettingsPage /> },
+      { path: "tokens", element: <TokensPage /> },
+      { path: "profile", element: <AdminProfilePage /> },
+      { path: "faq-api", element: <FaqApiPage /> },
+      { path: "remnawave", element: <RemnaWavePage /> },
+      { path: "logs", element: <LogsPage /> },
+      { path: "backups", element: <BackupsPage /> },
+      { path: "security", element: <SecurityPage /> },
+      { path: "notifications", element: <NotificationsPage /> },
       ...placeholderRoutes
         .filter((route) => route.path !== "subscriptions" && route.path !== "promocodes" && route.path !== "tickets")
         .map((route) => ({
           path: route.path,
           element: <PlaceholderPage title={route.title} description={route.description} />,
         })),
-      {
-        path: "*",
-        element: <Navigate to="/" replace />,
-      },
     ],
   },
+  { path: "*", element: <Navigate to="/auth" replace /> },
 ]);
 
 export function AppRouter() {

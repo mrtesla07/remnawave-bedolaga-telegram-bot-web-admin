@@ -597,7 +597,9 @@ class Transaction(Base):
     description = Column(Text, nullable=True)
     
     payment_method = Column(String(50), nullable=True)
-    external_id = Column(String(255), nullable=True)  
+    status = Column(String(50), nullable=True)
+    currency = Column(String(10), nullable=True)
+    external_id = Column(String(255), nullable=True)
     
     is_completed = Column(Boolean, default=True)
     
@@ -1141,3 +1143,18 @@ class WebApiToken(Base):
     def __repr__(self) -> str:
         status = "active" if self.is_active else "revoked"
         return f"<WebApiToken id={self.id} name='{self.name}' status={status}>"
+
+
+class AdminUser(Base):
+    __tablename__ = "admin_users"
+
+    id = Column(Integer, primary_key=True, index=True)
+    username = Column(String(64), unique=True, nullable=False, index=True)
+    password_hash = Column(String(255), nullable=False)
+    email = Column(String(255), nullable=True)
+    name = Column(String(255), nullable=True)
+    created_at = Column(DateTime, default=func.now())
+    updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
+
+    def __repr__(self) -> str:
+        return f"<AdminUser id={self.id} username='{self.username}'>"

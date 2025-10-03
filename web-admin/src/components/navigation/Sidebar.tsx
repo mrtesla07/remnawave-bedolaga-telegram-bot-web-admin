@@ -3,7 +3,7 @@ import { useMemo } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import { clsx } from "clsx";
 import { NAV_SECTIONS, type NavItem } from "./nav-data";
-import { CircleDot, Menu } from "lucide-react";
+import { CircleDot, Menu, BookOpen } from "lucide-react";
 
 export function Sidebar() {
   const location = useLocation();
@@ -53,7 +53,17 @@ export function Sidebar() {
           </div>
         ))}
       </div>
-
+      <div className="mt-auto pt-4">
+        <NavLink
+          to="/faq-api"
+          className="group flex items-center justify-between rounded-xl px-3 py-2.5 text-textMuted transition hover:bg-surfaceMuted/60"
+        >
+          <span className="flex items-center gap-3">
+            <BookOpen className="h-4 w-4 text-textMuted/80 group-hover:text-slate-200" />
+            <span className="font-medium">FAQ по API</span>
+          </span>
+        </NavLink>
+      </div>
     </aside>
   );
 }

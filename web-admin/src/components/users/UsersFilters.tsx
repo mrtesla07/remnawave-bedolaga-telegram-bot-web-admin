@@ -1,4 +1,4 @@
-﻿import { useEffect, useState } from "react";
+﻿import { useEffect, useRef, useState } from "react";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 
 const STATUS_OPTIONS = [
@@ -20,6 +20,18 @@ interface UsersFiltersProps {
 export function UsersFilters({ initialSearch, initialStatus, onChange }: UsersFiltersProps) {
   const [search, setSearch] = useState(initialSearch ?? "");
   const [status, setStatus] = useState(initialStatus ?? "");
+  const searchInputRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    const handler = (event: Event) => {
+      const custom = event as CustomEvent<string>;
+      const value = typeof custom.detail === "string" ? custom.detail : "";
+      setSearch(value);
+      searchInputRef.current?.focus();
+    };
+    window.addEventListener("bedolaga-users-focus-search", handler as EventListener);
+    return () => window.removeEventListener("bedolaga-users-focus-search", handler as EventListener);
+  }, []);
 
   const debouncedSearch = useDebouncedValue(search, 400);
 
@@ -36,6 +48,7 @@ export function UsersFilters({ initialSearch, initialStatus, onChange }: UsersFi
             placeholder="Поиск по имени, username, Telegram ID"
             value={search}
             onChange={(event) => setSearch(event.target.value)}
+            ref={searchInputRef}
           />
         </div>
         <select

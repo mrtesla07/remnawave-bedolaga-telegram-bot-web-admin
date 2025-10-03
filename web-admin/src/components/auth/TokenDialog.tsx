@@ -10,6 +10,7 @@ interface TokenDialogProps {
 
 export function TokenDialog({ open, onClose }: TokenDialogProps) {
   const token = useAuthStore((state) => state.token);
+  const jwtToken = useAuthStore((state) => state.jwtToken);
   const apiBaseUrl = useAuthStore((state) => state.apiBaseUrl);
   const setToken = useAuthStore((state) => state.setToken);
   const setApiBaseUrl = useAuthStore((state) => state.setApiBaseUrl);
@@ -17,6 +18,8 @@ export function TokenDialog({ open, onClose }: TokenDialogProps) {
   const [tokenValue, setTokenValue] = useState(token ?? "");
   const [baseUrlValue, setBaseUrlValue] = useState(apiBaseUrl ?? defaultApiBaseUrl);
   const [error, setError] = useState<string | null>(null);
+
+  const allowToken = Boolean(jwtToken);
 
   useEffect(() => {
     if (open) {
@@ -35,13 +38,19 @@ export function TokenDialog({ open, onClose }: TokenDialogProps) {
     const trimmedToken = tokenValue.trim();
     const trimmedUrl = baseUrlValue.trim().replace(/\/+$/, "");
 
-    if (!trimmedToken) {
+    if (allowToken && !trimmedToken) {
       setError("Укажите действительный токен API");
       return;
     }
 
-    setApiBaseUrl(trimmedUrl.length > 0 ? trimmedUrl : defaultApiBaseUrl);
-    setToken(trimmedToken);
+    let normalizedUrl = trimmedUrl.length > 0 ? trimmedUrl : defaultApiBaseUrl;
+    if (!/^https?:\/\//i.test(normalizedUrl)) {
+      normalizedUrl = `http://${normalizedUrl}`;
+    }
+    setApiBaseUrl(normalizedUrl);
+    if (allowToken) {
+      setToken(trimmedToken);
+    }
     onClose();
   };
 
@@ -49,11 +58,17 @@ export function TokenDialog({ open, onClose }: TokenDialogProps) {
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4">
       <div className="w-full max-w-lg rounded-3xl border border-outline/40 bg-surface/90 p-8 shadow-card">
         <p className="text-xs uppercase tracking-[0.28em] text-textMuted/70">подключение api</p>
-        <h2 className="mt-2 text-2xl font-semibold text-white">Укажите токен Bedolaga Web API</h2>
-        <p className="mt-2 text-sm text-textMuted">
-          Создайте токен по инструкции в docs/web-admin-integration.md: запрос `POST /tokens` с заголовком `X-API-Key`.
-          Для постоянной работы UI понадобится Bearer токен.
-        </p>
+        <h2 className="mt-2 text-2xl font-semibold text-white">
+          {allowToken ? "Укажите токен Bedolaga Web API" : "Укажите адрес API для подключения"}
+        </h2>
+        {allowToken ? (
+          <p className="mt-2 text-sm text-textMuted">
+            Создайте токен по инструкции в docs/web-admin-integration.md: запрос `POST /tokens` с заголовком `X-API-Key`.
+            Для постоянной работы UI понадобится Bearer токен.
+          </p>
+        ) : (
+          <p className="mt-2 text-sm text-textMuted">Укажите корректный адрес административного API, затем продолжите регистрацию/вход.</p>
+        )}
 
         <form className="mt-6 space-y-5" onSubmit={handleSubmit}>
           <label className="block text-sm text-textMuted">
@@ -69,18 +84,20 @@ export function TokenDialog({ open, onClose }: TokenDialogProps) {
             </span>
           </label>
 
-          <label className="block text-sm text-textMuted">
-            <span className="mb-2 flex items-center gap-2 text-xs uppercase tracking-[0.28em]">Bearer токен</span>
-            <span className="relative flex items-center">
-              <KeyRound className="pointer-events-none absolute left-4 h-4 w-4 text-textMuted" />
-              <input
-                className="w-full rounded-2xl border border-outline/40 bg-background/80 py-3 pl-12 pr-4 text-sm text-slate-100 placeholder:text-textMuted focus:border-primary/70 focus:outline-none focus:ring-2 focus:ring-primary/40"
-                value={tokenValue}
-                onChange={(event) => setTokenValue(event.target.value)}
-                placeholder="paste-your-token"
-              />
-            </span>
-          </label>
+          {allowToken ? (
+            <label className="block text-sm text-textMuted">
+              <span className="mb-2 flex items-center gap-2 text-xs uppercase tracking-[0.28em]">Bearer токен</span>
+              <span className="relative flex items-center">
+                <KeyRound className="pointer-events-none absolute left-4 h-4 w-4 text-textMuted" />
+                <input
+                  className="w-full rounded-2xl border border-outline/40 bg-background/80 py-3 pl-12 pr-4 text-sm text-slate-100 placeholder:text-textMuted focus:border-primary/70 focus:outline-none focus:ring-2 focus:ring-primary/40"
+                  value={tokenValue}
+                  onChange={(event) => setTokenValue(event.target.value)}
+                  placeholder="paste-your-token"
+                />
+              </span>
+            </label>
+          ) : null}
 
           {error ? <p className="text-xs text-danger">{error}</p> : null}
 

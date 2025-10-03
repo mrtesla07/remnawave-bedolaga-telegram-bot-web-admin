@@ -39,12 +39,6 @@ export function OverviewPanel({ metrics, chartPoints }: OverviewPanelProps) {
             Следите за ключевыми метриками и синхронизируйте данные RemnaWave и бота в реальном времени.
           </p>
         </div>
-        <div className="inline-flex items-center gap-2 self-start rounded-full border border-primary/30 bg-primary/10 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-primary">
-          <span className="flex h-2 w-2 items-center justify-center">
-            <span className="h-2 w-2 rounded-full bg-primary shadow-[0_0_0_4px_rgba(110,89,245,0.35)]" />
-          </span>
-          бот активен
-        </div>
       </header>
 
       <div className="relative mt-8 grid gap-4 md:grid-cols-2 xl:grid-cols-4">

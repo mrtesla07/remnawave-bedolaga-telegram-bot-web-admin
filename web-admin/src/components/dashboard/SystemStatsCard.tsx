@@ -16,6 +16,33 @@ const relativeTimeFormatter = new Intl.RelativeTimeFormat("ru-RU", { numeric: "a
 const BYTES_IN_GB = 1024 ** 3;
 
 export function SystemStatsCard({ stats, isLoading = false, nodesOnlineOverride }: SystemStatsCardProps) {
+  // Hooks must be called unconditionally in the same order on every render
+  const startRef = useRef<number>(Date.now());
+  const [tick, setTick] = useState(0);
+  const uptimeSeed = Math.max(0, stats?.server?.uptimeSeconds || 0);
+  const lastUpdatedSeed = stats?.lastUpdated;
+  useEffect(() => {
+    startRef.current = Date.now();
+    setTick(0);
+  }, [lastUpdatedSeed, uptimeSeed]);
+  useEffect(() => {
+    let rafId = 0;
+    const loop = () => {
+      setTick((t) => t + 1);
+      rafId = window.setTimeout(loop, 1000);
+    };
+    rafId = window.setTimeout(loop, 1000);
+    return () => window.clearTimeout(rafId);
+  }, []);
+
+  // Compute memoized values BEFORE any early returns to keep hooks order stable
+  const uptimeSecondsBase = uptimeSeed;
+  const totalUptimeSeconds = useMemo(() => {
+    const elapsedSec = Math.floor((Date.now() - startRef.current) / 1000);
+    return uptimeSecondsBase + Math.max(0, elapsedSec);
+  }, [uptimeSecondsBase, tick]);
+  const lastUpdatedLabel = formatRelativeTime(stats?.lastUpdated);
+
   if (isLoading && !stats) {
     return (
       <section className="card glow-border overflow-hidden rounded-3xl border border-outline/50 bg-surface/70 p-6">
@@ -28,7 +55,7 @@ export function SystemStatsCard({ stats, isLoading = false, nodesOnlineOverride 
             <h2 className="text-lg font-semibold text-white">Детальная статистика</h2>
           </div>
         </header>
-        <div className="mt-6 space-y-3">
+      <div className="mt-6 space-y-3">
           <SkeletonLine />
           <SkeletonLine />
           <SkeletonLine />
@@ -62,27 +89,7 @@ export function SystemStatsCard({ stats, isLoading = false, nodesOnlineOverride 
     stats.server.memoryAvailableBytes ?? stats.server.memoryFreeBytes,
   );
   const memoryFree = formatBytes(stats.server.memoryAvailableBytes ?? stats.server.memoryFreeBytes);
-  const uptimeSecondsBase = Math.max(0, stats.server.uptimeSeconds || 0);
-  const startRef = useRef<number>(Date.now());
-  const [tick, setTick] = useState(0);
-  useEffect(() => {
-    startRef.current = Date.now();
-    setTick(0);
-  }, [stats.lastUpdated, uptimeSecondsBase]);
-  useEffect(() => {
-    let rafId = 0;
-    const loop = () => {
-      setTick((t) => t + 1);
-      rafId = window.setTimeout(loop, 1000);
-    };
-    rafId = window.setTimeout(loop, 1000);
-    return () => window.clearTimeout(rafId);
-  }, []);
-  const totalUptimeSeconds = useMemo(() => {
-    const elapsedSec = Math.floor((Date.now() - startRef.current) / 1000);
-    return uptimeSecondsBase + Math.max(0, elapsedSec);
-  }, [uptimeSecondsBase, tick]);
-  const lastUpdatedLabel = formatRelativeTime(stats.lastUpdated);
+  // totalUptimeSeconds and lastUpdatedLabel computed above
 
   const summaryItems: Array<{ label: string; value: string }> = [];
   if (stats.summary) {
@@ -133,9 +140,9 @@ export function SystemStatsCard({ stats, isLoading = false, nodesOnlineOverride 
       ) : null}
 
       <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <KpiCard icon={<HardDrive className="h-4 w-4 text-success" />} label="RAM" value={memory.value} hint={`Свободно ${memoryFree}`} />
+        <KpiCard icon={<HardDrive className="h-4 w-4 text-success" />} label="RAM" value={memory.value} hint={`Свободно ${memoryFree}`} progress={memory.percent} />
         <KpiCard icon={<Cpu className="h-4 w-4 text-primary" />} label="CPU" value={cpuValue} />
-        <KpiCard icon={<Clock3 className="h-4 w-4 text-warning" />} label="Uptime" value={renderUptime(totalUptimeSeconds)} />
+        <KpiCard icon={<Clock3 className="h-4 w-4 text-warning" />} label="Время работы" value={renderUptime(totalUptimeSeconds)} />
         <KpiCard
           icon={<Wifi className="h-4 w-4 text-sky" />}
           label="Трафик (реалтайм)"
@@ -147,17 +154,24 @@ export function SystemStatsCard({ stats, isLoading = false, nodesOnlineOverride 
   );
 }
 
-function KpiCard({ icon, label, value, hint }: { icon: ReactNode; label: string; value: ReactNode; hint?: string }) {
+function KpiCard({ icon, label, value, hint, progress }: { icon: ReactNode; label: string; value: ReactNode; hint?: string; progress?: number }) {
   const isUnavailable = typeof value === "string" && value === "нет данных";
 
   return (
-    <div className="flex items-center gap-3 rounded-2xl border border-outline/40 bg-surfaceMuted/40 p-3">
-      <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-surface/60">{icon}</span>
-      <div className="min-w-0">
-        <p className="text-[10px] uppercase tracking-[0.28em] text-textMuted/70">{label}</p>
-        <div className={clsx("truncate text-sm font-semibold text-white", isUnavailable ? "text-textMuted" : undefined)}>{value}</div>
-        {hint ? <p className="truncate text-[11px] text-textMuted">{hint}</p> : null}
+    <div className="rounded-2xl border border-outline/40 bg-surfaceMuted/40 p-3">
+      <div className="flex items-center gap-3">
+        <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-surface/60">{icon}</span>
+        <div className="min-w-0">
+          <p className="text-[10px] uppercase tracking-[0.28em] text-textMuted/70">{label}</p>
+          <div className={clsx("truncate text-sm font-semibold text-white", isUnavailable ? "text-textMuted" : undefined)}>{value}</div>
+          {hint ? <p className="truncate text-[11px] text-textMuted">{hint}</p> : null}
+        </div>
       </div>
+      {Number.isFinite(progress) ? (
+        <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-surface/60">
+          <div className="h-full rounded-full bg-gradient-to-r from-primary/80 to-sky/70" style={{ width: `${Math.max(0, Math.min(100, Math.round(progress!))) }%` }} />
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -190,6 +204,7 @@ function formatInteger(value?: number | null): string {
 function formatMemory(usedBytes?: number | null, totalBytes?: number | null, availableBytes?: number | null): {
   value: string;
   hint?: string;
+  percent?: number;
 } {
   if (!Number.isFinite(totalBytes) || (totalBytes ?? 0) <= 0) {
     return { value: "нет данных" };
@@ -210,6 +225,7 @@ function formatMemory(usedBytes?: number | null, totalBytes?: number | null, ava
   return {
     value: `Используется ${numberFormatter.format(used / BYTES_IN_GB)} GB из ${numberFormatter.format(total / BYTES_IN_GB)} GB`,
     hint: `${percentFormatter.format(percent)}%`,
+    percent,
   };
 }
 
@@ -247,19 +263,11 @@ function renderUptime(totalSeconds?: number | null): ReactNode {
   const minutes = Math.floor((secAll % 3_600) / 60);
   const seconds = secAll % 60;
 
+  const main = `${pad2(hours)}:${pad2(minutes)}:${pad2(seconds)}`;
+  const prefix = days > 0 ? `${days}д ` : "";
+
   return (
-    <div className="flex items-center gap-2">
-      {days > 0 ? (
-        <span className="rounded bg-warning/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-warning">{days}д</span>
-      ) : null}
-      <div className="rounded-lg bg-surface/60 px-2 py-1 font-mono tabular-nums text-base leading-none text-white sm:text-lg">
-        <span>{pad2(hours)}</span>
-        <span className="mx-0.5 inline-block animate-pulse">:</span>
-        <span>{pad2(minutes)}</span>
-        <span className="mx-0.5 inline-block animate-pulse">:</span>
-        <span>{pad2(seconds)}</span>
-      </div>
-    </div>
+    <span className="font-mono tabular-nums text-base text-white sm:text-lg">{prefix}{main}</span>
   );
 }
 

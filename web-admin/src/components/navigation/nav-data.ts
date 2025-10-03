@@ -53,14 +53,13 @@ export const NAV_SECTIONS: NavSection[] = [
   {
     title: "Система",
     items: [
-      { label: "RemnaWave", to: "/remnawave/nodes", icon: Server },
-      { label: "Синхронизация", to: "/remnawave/sync", icon: Radio },
-      { label: "Логи", to: "/logs", icon: ScrollText, isSoon: true },
+      { label: "RemnaWave", to: "/remnawave", icon: Server },
+      { label: "Логи", to: "/logs", icon: ScrollText },
       { label: "API ключи", to: "/tokens", icon: KeyRound },
       { label: "Настройки", to: "/settings", icon: Settings },
       { label: "Резервные копии", to: "/backups", icon: Database },
-      { label: "Безопасность", to: "/security", icon: Shield, isSoon: true },
-      { label: "Уведомления", to: "/notifications", icon: BellRing, isSoon: true },
+      { label: "Безопасность", to: "/security", icon: Shield },
+      { label: "Уведомления", to: "/notifications", icon: BellRing },
     ],
   },
 ];

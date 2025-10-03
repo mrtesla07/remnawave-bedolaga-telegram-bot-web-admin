@@ -8,6 +8,9 @@ interface FinanceFiltersProps {
     is_completed?: boolean;
     date_from?: string;
     date_to?: string;
+    amount_min?: number;
+    amount_max?: number;
+    currency?: string;
   }) => void;
 }
 
@@ -24,6 +27,17 @@ const STATUS_OPTIONS = [
   { value: "", label: "Все статусы" },
   { value: "completed", label: "Завершено" },
   { value: "pending", label: "В ожидании" },
+  { value: "failed", label: "Ошибка" },
+  { value: "processing", label: "Обработка" },
+  { value: "canceled", label: "Отменено" },
+];
+
+const CURRENCY_OPTIONS = [
+  { value: "", label: "Все валюты" },
+  { value: "RUB", label: "RUB" },
+  { value: "USD", label: "USD" },
+  { value: "EUR", label: "EUR" },
+  { value: "USDT", label: "USDT" },
 ];
 
 export function FinanceFilters({ onChange }: FinanceFiltersProps) {
@@ -33,17 +47,23 @@ export function FinanceFilters({ onChange }: FinanceFiltersProps) {
   const [status, setStatus] = useState("");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
+  const [amountMin, setAmountMin] = useState("");
+  const [amountMax, setAmountMax] = useState("");
+  const [currency, setCurrency] = useState("");
 
   useEffect(() => {
     onChange({
       user_id: userId ? Number(userId) : undefined,
       type: type || undefined,
       payment_method: paymentMethod || undefined,
-      is_completed: status ? status === "completed" : undefined,
+      status: status || undefined,
       date_from: dateFrom || undefined,
       date_to: dateTo || undefined,
+      amount_min: amountMin ? Number(amountMin) : undefined,
+      amount_max: amountMax ? Number(amountMax) : undefined,
+      currency: currency || undefined,
     });
-  }, [userId, type, paymentMethod, status, dateFrom, dateTo, onChange]);
+  }, [userId, type, paymentMethod, status, dateFrom, dateTo, amountMin, amountMax, currency, onChange]);
 
   return (
     <div className="grid gap-3 rounded-3xl border border-outline/40 bg-surfaceMuted/40 p-4 md:grid-cols-3 xl:grid-cols-6">
@@ -93,6 +113,37 @@ export function FinanceFilters({ onChange }: FinanceFiltersProps) {
         value={dateTo}
         onChange={(event) => setDateTo(event.target.value)}
       />
+      <div className="flex items-center gap-2 rounded-2xl border border-outline/40 bg-surface/60 px-3 py-2">
+        <span className="text-xs uppercase tracking-[0.28em] text-textMuted/70">Сумма ₽</span>
+        <input
+          type="number"
+          className="w-full bg-transparent text-sm text-slate-100 placeholder:text-textMuted focus:outline-none"
+          placeholder="от"
+          value={amountMin}
+          min="0"
+          onChange={(event) => setAmountMin(event.target.value.replace(/[^0-9.]/g, ""))}
+        />
+        <span className="text-textMuted">—</span>
+        <input
+          type="number"
+          className="w-full bg-transparent text-sm text-slate-100 placeholder:text-textMuted focus:outline-none"
+          placeholder="до"
+          value={amountMax}
+          min="0"
+          onChange={(event) => setAmountMax(event.target.value.replace(/[^0-9.]/g, ""))}
+        />
+      </div>
+      <select
+        className="rounded-2xl border border-outline/40 bg-surface/70 px-3 py-2 text-sm text-white focus:border-primary/70 focus:outline-none focus:ring-2 focus:ring-primary/30"
+        value={currency}
+        onChange={(event) => setCurrency(event.target.value)}
+      >
+        {CURRENCY_OPTIONS.map((option) => (
+          <option key={option.value} value={option.value}>
+            {option.label}
+          </option>
+        ))}
+      </select>
     </div>
   );
 }

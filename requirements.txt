@@ -9,6 +9,7 @@ aiosqlite==0.21.0
 # Дополнительные зависимости
 pydantic==2.11.9
 pydantic-settings==2.10.1
+email-validator==2.2.0
 python-dotenv==1.1.1
 redis==5.0.1
 PyYAML==6.0.2
