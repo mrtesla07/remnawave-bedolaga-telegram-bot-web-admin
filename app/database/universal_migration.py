@@ -70,15 +70,13 @@ async def sync_postgres_sequences() -> bool:
 
                 seq_schema = seq_schema.strip('"')
                 seq_name = seq_name.strip('"')
+                sequence_identifier = (
+                    f'"{seq_schema}"."{seq_name}"' if seq_schema else f'"{seq_name}"'
+                )
                 current_result = await conn.execute(
                     text(
-                        """
-                        SELECT last_value, is_called
-                        FROM pg_sequences
-                        WHERE schemaname = :schema AND sequencename = :sequence
-                        """
-                    ),
-                    {"schema": seq_schema, "sequence": seq_name},
+                        f"SELECT last_value, is_called FROM {sequence_identifier}"
+                    )
                 )
                 current_row = current_result.fetchone()
 
