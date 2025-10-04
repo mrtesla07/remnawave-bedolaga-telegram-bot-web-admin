@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import ClassVar, Optional
 
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, validator, model_validator
 
 from app.keyboards.admin import BROADCAST_BUTTONS, DEFAULT_BROADCAST_BUTTONS
 
@@ -83,16 +83,19 @@ class BroadcastCreateRequest(BaseModel):
             seen.add(button)
         return ordered
 
-    @validator("message_text")
-    def validate_message_or_caption(cls, value: str, values):
-        text = (value or "").strip()
-        media = values.get("media")
-        # allow empty message if media with caption is provided; otherwise require non-empty
-        if not text:
-            if media and (getattr(media, "caption", None) or "").strip():
-                return ""
+    @model_validator(mode="after")
+    def validate_message_or_caption(self):
+        text = (self.message_text or "").strip()
+        media_caption = ""
+        try:
+            media_caption = (getattr(self.media, "caption", None) or "").strip() if self.media else ""
+        except Exception:
+            media_caption = ""
+        if not text and not media_caption:
             raise ValueError("Message text must not be empty unless media caption is provided")
-        return text
+        # normalize message_text to trimmed form
+        self.message_text = text
+        return self
 
 
 class BroadcastResponse(BaseModel):

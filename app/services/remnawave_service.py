@@ -332,9 +332,7 @@ class RemnaWaveService:
                         'xray_version': getattr(node, 'xray_version', None),
                         'node_version': getattr(node, 'node_version', None),
                         'xray_uptime_seconds': getattr(node, 'xray_uptime_seconds', None),
-                        'cpu_count': getattr(node, 'cpu_count', None),
-                        'cpu_model': getattr(node, 'cpu_model', None),
-                        'total_ram_bytes': getattr(node, 'total_ram_bytes', None),
+                        # cpu/ram fields removed (panel does not provide realtime)
                     })
                 
                 # Fallback: если для ноды не приходит накопленный трафик из панели,
@@ -453,9 +451,7 @@ class RemnaWaveService:
                     "xray_version": getattr(node, 'xray_version', None),
                     "node_version": getattr(node, 'node_version', None),
                     "xray_uptime_seconds": getattr(node, 'xray_uptime_seconds', None),
-                    "cpu_count": getattr(node, 'cpu_count', None),
-                    "cpu_model": getattr(node, 'cpu_model', None),
-                    "total_ram_bytes": getattr(node, 'total_ram_bytes', None),
+                    # cpu/ram fields removed
                 }
                 
         except Exception as e:
@@ -1049,151 +1045,7 @@ class RemnaWaveService:
         try:
             async with self.get_api_client() as api:
                 usage_data = await api.get_nodes_realtime_usage()
-
-                # Build node map for enrichment (cpu cores, total RAM, uptime)
-                nodes_map: Dict[str, Any] = {}
-                try:
-                    nodes = await api.get_all_nodes()
-                    for n in nodes:
-                        nodes_map[getattr(n, 'uuid', '')] = n
-                except Exception as map_err:
-                    logger.debug(f"Не удалось получить список нод для обогащения realtime: {map_err}")
-
-                def _to_int_safe(value):
-                    try:
-                        if value is None:
-                            return None
-                        if isinstance(value, (int, float)):
-                            return int(value)
-                        if isinstance(value, str) and value.strip():
-                            return int(float(value.strip()))
-                    except (ValueError, TypeError):
-                        return None
-                    return None
-
-                def _pick_number(source: Dict[str, Any], keys: List[str]):
-                    for k in keys:
-                        if k in source:
-                            v = source.get(k)
-                            if isinstance(v, (int, float)):
-                                return float(v)
-                            if isinstance(v, str):
-                                try:
-                                    return float(v.strip())
-                                except (ValueError, TypeError):
-                                    pass
-                    return None
-
-                enriched: List[Dict[str, Any]] = []
-                for item in (usage_data or []):
-                    if not isinstance(item, dict):
-                        enriched.append(item)
-                        continue
-
-                    node_uuid = item.get('nodeUuid') or item.get('node_uuid') or item.get('uuid')
-                    node_obj = nodes_map.get(str(node_uuid)) if node_uuid else None
-
-                    # Uptime fallback
-                    if 'uptimeSeconds' not in item and node_obj is not None:
-                        xray_uptime_seconds = getattr(node_obj, 'xray_uptime_seconds', None)
-                        if xray_uptime_seconds:
-                            item['uptimeSeconds'] = int(xray_uptime_seconds)
-
-                    # RAM percent
-                    ram_present = any(k in item for k in [
-                        'ramUsagePercent', 'memoryUsagePercent', 'memoryPercent', 'memory_percent', 'ramPercent', 'memoryUsage', 'ram'
-                    ])
-                    if not ram_present:
-                        total_ram_bytes = getattr(node_obj, 'total_ram_bytes', None) if node_obj is not None else None
-                        used_bytes = None
-                        free_bytes = None
-                        available_bytes = None
-
-                        for key in ['memoryUsedBytes', 'usedMemoryBytes', 'memory_used_bytes', 'ramUsedBytes', 'usedRamBytes', 'memoryUsed']:
-                            val = _to_int_safe(item.get(key))
-                            if used_bytes is None and val is not None:
-                                used_bytes = val
-                        for key in ['memoryFreeBytes', 'freeMemoryBytes', 'memory_free_bytes', 'ramFreeBytes']:
-                            val = _to_int_safe(item.get(key))
-                            if free_bytes is None and val is not None:
-                                free_bytes = val
-                        for key in ['memoryAvailableBytes', 'availableMemoryBytes', 'memory_available_bytes']:
-                            val = _to_int_safe(item.get(key))
-                            if available_bytes is None and val is not None:
-                                available_bytes = val
-
-                        # Nested memory objects
-                        for mem_obj_key in ['memory', 'ram', 'mem']:
-                            mem_obj = item.get(mem_obj_key)
-                            if isinstance(mem_obj, dict):
-                                # direct percent
-                                pct = _pick_number(mem_obj, ['usagePercent', 'percent'])
-                                if pct is not None:
-                                    item['ramUsagePercent'] = round(max(0.0, min(100.0, pct)), 2)
-                                    ram_present = True
-                                    break
-                                if total_ram_bytes is None:
-                                    total_ram_bytes = _to_int_safe(mem_obj.get('totalBytes') or mem_obj.get('total')) or total_ram_bytes
-                                if used_bytes is None:
-                                    used_bytes = _to_int_safe(mem_obj.get('usedBytes') or mem_obj.get('used'))
-                                if free_bytes is None:
-                                    free_bytes = _to_int_safe(mem_obj.get('freeBytes') or mem_obj.get('free'))
-                                if available_bytes is None:
-                                    available_bytes = _to_int_safe(mem_obj.get('availableBytes') or mem_obj.get('available'))
-
-                        if not ram_present:
-                            ratio = _pick_number(item, ['memoryUsage'])
-                            computed = None
-                            if total_ram_bytes and used_bytes is not None and total_ram_bytes > 0:
-                                computed = (used_bytes / float(total_ram_bytes)) * 100.0
-                            elif total_ram_bytes and free_bytes is not None and total_ram_bytes > 0:
-                                computed = ((float(total_ram_bytes) - free_bytes) / float(total_ram_bytes)) * 100.0
-                            elif total_ram_bytes and available_bytes is not None and total_ram_bytes > 0:
-                                computed = ((float(total_ram_bytes) - available_bytes) / float(total_ram_bytes)) * 100.0
-                            elif ratio is not None:
-                                if 0.0 <= ratio <= 1.0:
-                                    computed = ratio * 100.0
-                                elif 1.0 < ratio <= 100.0:
-                                    computed = ratio
-                            if computed is not None:
-                                item['ramUsagePercent'] = round(max(0.0, min(100.0, computed)), 2)
-
-                    # CPU percent
-                    cpu_present = any(k in item for k in ['cpuUsagePercent', 'cpuPercent', 'cpu_percent', 'cpuUsage', 'cpu'])
-                    if not cpu_present:
-                        cpu_candidate = _pick_number(item, ['cpuUsagePercent', 'cpuPercent', 'cpu_percent', 'cpuUsage', 'cpu'])
-                        if cpu_candidate is None:
-                            # nested cpu objects
-                            for cpu_obj_key in ['cpuInfo', 'cpu', 'system', 'metrics']:
-                                cpu_obj = item.get(cpu_obj_key)
-                                if isinstance(cpu_obj, dict):
-                                    cpu_candidate = _pick_number(cpu_obj, ['usagePercent', 'percent', 'usage', 'cpuUsagePercent', 'cpuPercent', 'cpu_percent'])
-                                    if cpu_candidate is not None:
-                                        break
-                        if cpu_candidate is None:
-                            # derive from load and cores
-                            load1 = _pick_number(item, ['load1', 'load_1', 'loadAvg1', 'load_average_1'])
-                            if load1 is None:
-                                for cpu_obj_key in ['cpuInfo', 'cpu', 'system', 'metrics']:
-                                    obj = item.get(cpu_obj_key)
-                                    if isinstance(obj, dict):
-                                        load1 = _pick_number(obj, ['load1', 'load', 'oneMinute', 'one_minute'])
-                                        if load1 is not None:
-                                            break
-                            cores = None
-                            if node_obj is not None:
-                                cores = _to_int_safe(getattr(node_obj, 'cpu_count', None))
-                            if cores is None:
-                                cores = _to_int_safe(item.get('cpuCores') or item.get('cores'))
-                            if load1 is not None and cores and cores > 0:
-                                derived = (float(load1) / float(cores)) * 100.0
-                                cpu_candidate = max(0.0, min(100.0, derived))
-                        if cpu_candidate is not None:
-                            item['cpuUsagePercent'] = round(float(cpu_candidate), 2)
-
-                    enriched.append(item)
-
-                return enriched
+                return usage_data
                 
         except Exception as e:
             logger.error(f"Ошибка получения актуального использования нод: {e}")

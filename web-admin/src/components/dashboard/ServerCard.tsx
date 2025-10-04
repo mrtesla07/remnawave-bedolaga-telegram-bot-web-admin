@@ -89,8 +89,7 @@ export function ServerCard({ server, layout = "compact" }: ServerCardProps) {
         <p className="text-xs uppercase tracking-[0.32em] text-textMuted">Ресурсы</p>
         <dl className="mt-3 grid gap-3 text-sm text-textMuted">
           <Stat label="Пользователи" value={`${server.usersOnline}`} addon="онлайн" />
-          <Progress label="CPU" value={server.cpuUsagePercent} tone={server.cpuUsagePercent > 65 ? "warning" : "success"} />
-          <Progress label="RAM" value={server.ramUsagePercent} tone={server.ramUsagePercent > 70 ? "warning" : "success"} />
+          {/* CPU/RAM removed */}
           <Stat label="Uptime" value={uptimeValue} addon={uptimeAddon} />
         </dl>
         {lastUpdatedLabel ? <p className="mt-4 text-xs text-textMuted">Обновлено {lastUpdatedLabel}</p> : null}

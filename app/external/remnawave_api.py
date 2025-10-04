@@ -89,9 +89,6 @@ class RemnaWaveNode:
     xray_version: Optional[str] = None
     node_version: Optional[str] = None
     xray_uptime_seconds: Optional[int] = None
-    cpu_count: Optional[int] = None
-    cpu_model: Optional[str] = None
-    total_ram_bytes: Optional[int] = None
 
 
 @dataclass
@@ -661,9 +658,6 @@ class RemnaWaveAPI:
                 return None
             return None
 
-        total_ram_str = node_data.get('totalRam')
-        total_ram_bytes = parse_bytes(total_ram_str) if isinstance(total_ram_str, str) else None
-
         return RemnaWaveNode(
             uuid=node_data['uuid'],
             name=node_data['name'],
@@ -680,9 +674,6 @@ class RemnaWaveAPI:
             xray_version=node_data.get('xrayVersion'),
             node_version=node_data.get('nodeVersion'),
             xray_uptime_seconds=_to_int(node_data.get('xrayUptime')),
-            cpu_count=_to_int(node_data.get('cpuCount')),
-            cpu_model=node_data.get('cpuModel'),
-            total_ram_bytes=total_ram_bytes,
         )
     
     def _parse_subscription_info(self, data: Dict) -> SubscriptionInfo:

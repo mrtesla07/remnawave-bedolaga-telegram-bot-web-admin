@@ -2,6 +2,7 @@ export interface BroadcastItem { id: number; target_type: string; message_text: 
 export interface BroadcastListResponse { items: BroadcastItem[]; total: number; limit: number; offset: number; }
 export interface BroadcastCreatePayload { target: string; message_text: string; selected_buttons?: string[]; media?: { type: "photo" | "video" | "document"; file_id: string; caption?: string | null } | null }
 import { apiClient } from "@/lib/api-client";
+import { authStore } from "@/store/auth-store";
 export async function fetchBroadcasts(params: { limit?: number; offset?: number } = {}): Promise<BroadcastListResponse> { const { data } = await apiClient.get<BroadcastListResponse>("/broadcasts", { params: { limit: params.limit ?? 50, offset: params.offset ?? 0 } }); return data; }
 export async function createBroadcast(payload: BroadcastCreatePayload): Promise<BroadcastItem> { const { data } = await apiClient.post<BroadcastItem>("/broadcasts", payload); return data; }
 export async function stopBroadcast(id: number): Promise<BroadcastItem> { const { data } = await apiClient.post<BroadcastItem>(`/broadcasts/${id}/stop`); return data; }
@@ -12,7 +13,7 @@ export async function uploadBroadcastMedia(file: File, type: "photo" | "video" |
   form.append("file", file);
   if (caption) form.append("caption", caption);
   const { data } = await apiClient.post<BroadcastUploadResponse>("/broadcasts/media/upload", form, { headers: { "Content-Type": "multipart/form-data" } });
-  const base = (apiClient.defaults.baseURL || "").toString().replace(/\/$/, "");
+  const base = (authStore.getState().apiBaseUrl || apiClient.defaults.baseURL || "").toString().replace(/\/$/, "");
   if (data?.preview_url && base) {
     try {
       const u = new URL(data.preview_url, base);

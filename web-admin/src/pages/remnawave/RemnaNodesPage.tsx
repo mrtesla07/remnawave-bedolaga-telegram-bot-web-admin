@@ -23,8 +23,6 @@ type RealtimeUsage = {
   totalBytes?: number;
   downloadSpeedBps?: number;
   uploadSpeedBps?: number;
-  cpuUsagePercent?: number;
-  ramUsagePercent?: number;
 };
 
 function formatBytes(bytes?: number | null) {
@@ -67,8 +65,6 @@ function RealtimeInfo({ r }: { r?: RealtimeUsage }) {
   const up = r.uploadBytes || 0;
   const ds = r.downloadSpeedBps || 0;
   const us = r.uploadSpeedBps || 0;
-  const cpu = typeof r.cpuUsagePercent === "number" ? Math.round(r.cpuUsagePercent) : null;
-  const ram = typeof r.ramUsagePercent === "number" ? Math.round(r.ramUsagePercent) : null;
   return (
     <div className="mt-1 space-y-0.5 text-[11px] text-textMuted">
       <div>
@@ -78,12 +74,7 @@ function RealtimeInfo({ r }: { r?: RealtimeUsage }) {
         {formatMbps(ds)} / {formatMbps(us)} Mbps
         <span className="ml-1 text-[10px]">↓ / ↑</span>
       </div>
-      {(cpu !== null || ram !== null) ? (
-        <div className="flex items-center gap-2">
-          {cpu !== null ? <span>CPU {cpu}%</span> : null}
-          {ram !== null ? <span>RAM {ram}%</span> : null}
-        </div>
-      ) : null}
+      {/* CPU/RAM not provided by panel realtime */}
     </div>
   );
 }

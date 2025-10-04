@@ -64,8 +64,7 @@ export interface ServerCardData {
   temperatureC: number;
   uptimeHours: number;
   uptimePercent: number;
-  cpuUsagePercent: number;
-  ramUsagePercent: number;
+  // cpu/ram percent removed (not provided by panel realtime)
   usersOnline: number;
   realtimeUpdatedAt?: string;
   metrics: ServerMetric[];
