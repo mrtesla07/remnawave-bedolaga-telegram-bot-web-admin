@@ -16,7 +16,7 @@ class BroadcastMedia(BaseModel):
 
 class BroadcastCreateRequest(BaseModel):
     target: str
-    message_text: str = Field(..., min_length=1, max_length=4000)
+    message_text: str = Field("", max_length=4000)
     selected_buttons: list[str] = Field(
         default_factory=lambda: list(DEFAULT_BROADCAST_BUTTONS)
     )
@@ -82,6 +82,17 @@ class BroadcastCreateRequest(BaseModel):
             ordered.append(button)
             seen.add(button)
         return ordered
+
+    @validator("message_text")
+    def validate_message_or_caption(cls, value: str, values):
+        text = (value or "").strip()
+        media = values.get("media")
+        # allow empty message if media with caption is provided; otherwise require non-empty
+        if not text:
+            if media and (getattr(media, "caption", None) or "").strip():
+                return ""
+            raise ValueError("Message text must not be empty unless media caption is provided")
+        return text
 
 
 class BroadcastResponse(BaseModel):

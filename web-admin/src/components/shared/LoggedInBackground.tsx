@@ -3,7 +3,8 @@ import { memo } from "react";
 // Animated gradient + brand-colored blobs for logged-in screens
 export const LoggedInBackground = memo(function LoggedInBackground() {
   return (
-    <div className="pointer-events-none absolute inset-0 z-0 overflow-hidden">
+    <>
+      <div className="pointer-events-none absolute inset-0 z-0 overflow-hidden">
       {/* Brand radial gradients (purple + cyan) */}
       <div className="absolute inset-0 bg-[radial-gradient(1200px_600px_at_15%_-10%,rgba(110,89,245,0.22),transparent_60%),radial-gradient(900px_520px_at_85%_5%,rgba(61,201,255,0.14),transparent_60%),radial-gradient(1000px_620px_at_50%_115%,rgba(110,89,245,0.12),transparent_60%)] animate-bgFloat" />
 
@@ -106,7 +107,22 @@ export const LoggedInBackground = memo(function LoggedInBackground() {
           ))}
         </div>
       ))}
-    </div>
+      </div>
+
+      {/* Clickable footer credit (outside pointer-events-none) */}
+      <div className="pointer-events-auto absolute bottom-2 left-1/2 -translate-x-1/2 z-10">
+        <a
+          href="https://github.com/PEDZEO"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="block rounded-full px-2 py-1 text-[11px] sm:text-xs font-semibold tracking-wide"
+        >
+          <span className="bg-[linear-gradient(90deg,rgba(193,201,255,0.6),rgba(110,89,245,0.95),rgba(61,201,255,0.7),rgba(193,201,255,0.6))] animate-shimmer bg-clip-text text-transparent drop-shadow-[0_0_6px_rgba(110,89,245,0.3)]">
+            by Pedzeo
+          </span>
+        </a>
+      </div>
+    </>
   );
 });
 

@@ -427,7 +427,7 @@ class RemnaWaveService:
                         traffic_used_bytes = total_used
                     except Exception as usage_err:
                         logger.debug(f"Не удалось получить месячное потребление для ноды {node.uuid}: {usage_err}")
-
+                
                 return {
                     "uuid": node.uuid,
                     "name": node.name,

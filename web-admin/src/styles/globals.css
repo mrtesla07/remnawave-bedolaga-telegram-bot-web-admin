@@ -114,3 +114,14 @@ body {
   .animate-flyHoriz, .animate-drift, .animate-bgFloat, .animate-blob, .animate-pulseSoft { animation: none !important; }
 }
 
+/* Shimmering gradient text for footer credit */
+@keyframes shimmer {
+  0% { background-position: 0% 50%; }
+  100% { background-position: 200% 50%; }
+}
+
+.animate-shimmer {
+  background-size: 200% auto;
+  animation: shimmer 6s linear infinite;
+}
+

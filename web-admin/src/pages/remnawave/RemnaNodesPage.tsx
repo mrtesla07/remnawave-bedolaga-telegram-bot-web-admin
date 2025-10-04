@@ -15,12 +15,28 @@ type NodeItem = {
   traffic_limit_bytes?: number | null;
 };
 
+type RealtimeUsage = {
+  nodeUuid?: string;
+  nodeName?: string;
+  downloadBytes?: number;
+  uploadBytes?: number;
+  totalBytes?: number;
+  downloadSpeedBps?: number;
+  uploadSpeedBps?: number;
+};
+
 function formatBytes(bytes?: number | null) {
   if (!bytes || bytes <= 0) return "0 B";
   const units = ["B", "KB", "MB", "GB", "TB"];
   const i = Math.floor(Math.log(bytes) / Math.log(1024));
   const val = bytes / Math.pow(1024, i);
   return `${val.toFixed(1)} ${units[i]}`;
+}
+
+function formatMbps(bpsBytes?: number | null) {
+  if (!bpsBytes || bpsBytes <= 0) return "0.0";
+  const mbitPerSec = (bpsBytes * 8) / 1_000_000;
+  return mbitPerSec.toFixed(1);
 }
 
 function TrafficCell({ used, limit }: { used?: number | null; limit?: number | null }) {
@@ -43,15 +59,45 @@ function TrafficCell({ used, limit }: { used?: number | null; limit?: number | n
   );
 }
 
+function RealtimeInfo({ r }: { r?: RealtimeUsage }) {
+  if (!r) return null;
+  const down = r.downloadBytes || 0;
+  const up = r.uploadBytes || 0;
+  const ds = r.downloadSpeedBps || 0;
+  const us = r.uploadSpeedBps || 0;
+  return (
+    <div className="mt-1 space-y-0.5 text-[11px] text-textMuted">
+      <div>
+        {formatBytes(down)} ↓ / {formatBytes(up)} ↑
+      </div>
+      <div>
+        {formatMbps(ds)} / {formatMbps(us)} Mbps
+        <span className="ml-1 text-[10px]">↓ / ↑</span>
+      </div>
+    </div>
+  );
+}
+
 export default function RemnaNodesPage() {
   const [nodes, setNodes] = useState<NodeItem[]>([]);
   const [loading, setLoading] = useState(false);
+  const [realtimeByUuid, setRealtimeByUuid] = useState<Record<string, RealtimeUsage>>({});
 
   async function load() {
     try {
       setLoading(true);
-      const { data } = await apiClient.get<{ items: NodeItem[]; total: number }>("/remnawave/nodes");
-      setNodes(data.items);
+      const [nodesRes, rtRes] = await Promise.all([
+        apiClient.get<{ items: NodeItem[]; total: number }>("/remnawave/nodes"),
+        apiClient.get<RealtimeUsage[]>("/remnawave/nodes/realtime"),
+      ]);
+      setNodes(nodesRes.data.items);
+      const map: Record<string, RealtimeUsage> = {};
+      const items = Array.isArray(rtRes.data) ? rtRes.data : [];
+      for (const it of items) {
+        const id = (it as any).nodeUuid || (it as any).node_uuid || (it as any).uuid;
+        if (id) map[id] = it;
+      }
+      setRealtimeByUuid(map);
     } catch {}
     finally {
       setLoading(false);
@@ -94,12 +140,14 @@ export default function RemnaNodesPage() {
               {nodes.map((n) => {
                 const status = getNodeStatus(n);
                 const hasQuota = typeof n.traffic_limit_bytes === "number" && n.traffic_limit_bytes > 0;
+                const rt = realtimeByUuid[n.uuid];
                 return (
                   <tr key={n.uuid} className="odd:bg-surface/40">
                     <td className="px-3 py-2 text-slate-200">{n.name}</td>
                     <td className="px-3 py-2 text-xs text-textMuted/90">{n.address}</td>
                     <td className="px-3 py-2 text-xs">
                       <TrafficCell used={n.traffic_used_bytes} limit={hasQuota ? n.traffic_limit_bytes : 0} />
+                      <RealtimeInfo r={rt} />
                     </td>
                     <td className="px-3 py-2 text-xs">
                       <span className={status.cls}>{status.label}</span>

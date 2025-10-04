@@ -105,6 +105,9 @@ export function SystemStatsCard({ stats, isLoading = false, nodesOnlineOverride 
     ? `${formatBytes(stats.bandwidth.realtimeTotalBytes)} (↓ ${formatBytes(stats.bandwidth.realtimeDownloadBytes)} · ↑ ${formatBytes(stats.bandwidth.realtimeUploadBytes)})`
     : "нет данных";
 
+  const traffic24hBytes = stats.trafficPeriods?.last2Days?.current ?? 0;
+  const trafficPrev24hBytes = stats.trafficPeriods?.last2Days?.previous ?? 0;
+
   return (
     <section className="card glow-border overflow-hidden rounded-3xl border border-outline/50 bg-surface/70 p-6">
       <header className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -145,9 +148,9 @@ export function SystemStatsCard({ stats, isLoading = false, nodesOnlineOverride 
         <KpiCard icon={<Clock3 className="h-4 w-4 text-warning" />} label="Время работы" value={renderUptime(totalUptimeSeconds)} />
         <KpiCard
           icon={<Wifi className="h-4 w-4 text-sky" />}
-          label="Трафик (реалтайм)"
-          value={stats.bandwidth ? formatBytes(stats.bandwidth.realtimeTotalBytes) : "нет данных"}
-          hint={stats.bandwidth ? `↓ ${formatBytes(stats.bandwidth.realtimeDownloadBytes)} · ↑ ${formatBytes(stats.bandwidth.realtimeUploadBytes)}` : undefined}
+          label="Трафик (24ч)"
+          value={formatBytes(traffic24hBytes)}
+          hint={trafficPrev24hBytes > 0 ? `вчера: ${formatBytes(trafficPrev24hBytes)}` : undefined}
         />
       </div>
     </section>

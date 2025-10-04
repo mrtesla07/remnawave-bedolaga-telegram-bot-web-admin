@@ -43,10 +43,18 @@ def _serialize_message(
                 message_id=str(message.id),
             )
             api_key = request.headers.get("X-API-Key")
-            # If API key is present in headers, append as query for browser <img> access
-            if api_key:
+            auth_header = request.headers.get("Authorization")
+            bearer_token: Optional[str] = None
+            if auth_header:
+                scheme, _, credentials = auth_header.partition(" ")
+                if scheme.lower() == "bearer" and credentials:
+                    bearer_token = credentials
+
+            # If API key or Bearer JWT is present, append as query for browser <img> access
+            token_for_query = api_key or bearer_token
+            if token_for_query:
                 sep = "&" if ("?" in str(base_url)) else "?"
-                media_url = f"{base_url}{sep}api_key={api_key}"
+                media_url = f"{base_url}{sep}api_key={token_for_query}"
             else:
                 media_url = str(base_url)
         except Exception:

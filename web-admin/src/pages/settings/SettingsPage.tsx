@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useResetSetting, useSettingCategories, useSettings, useUpdateSetting } from "@/features/settings/queries";
-import { Check, Layers3, Puzzle, RefreshCw, Search, Settings, Sliders, ToggleLeft, ToggleRight } from "lucide-react";
+import { Check, Layers3, Puzzle, RefreshCw, Search, Settings, Sliders, ToggleLeft, ToggleRight, Info } from "lucide-react";
 
 export function SettingsPage() {
   const [selectedCategory, setSelectedCategory] = useState<string | undefined>(undefined);
@@ -10,7 +10,15 @@ export function SettingsPage() {
   const updateMut = useUpdateSetting();
   const resetMut = useResetSetting();
 
-  const items = (settings.data || []).filter((d) => d.name.toLowerCase().includes(search.toLowerCase()) || d.key.toLowerCase().includes(search.toLowerCase()));
+  // Sections and active group
+  const sections = useMemo(() => buildCategorySections(categories.data || []), [categories.data]);
+  const [activeGroup, setActiveGroup] = useState<string>(sections[0]?.key || "system");
+
+  // Visible items: restrict by selected category or active group, then by search
+  const activeCategoryKeys = useMemo(() => new Set((sections.find((s) => s.key === activeGroup)?.categories || []).map((c) => c.key)), [sections, activeGroup]);
+  const items = (settings.data || [])
+    .filter((d) => (selectedCategory ? d.category.key === selectedCategory : activeCategoryKeys.size ? activeCategoryKeys.has(d.category.key) : true))
+    .filter((d) => d.name.toLowerCase().includes(search.toLowerCase()) || d.key.toLowerCase().includes(search.toLowerCase()));
   const grouped = useMemo(() => {
     const map = new Map<string, typeof items>();
     for (const item of items) {
@@ -20,9 +28,6 @@ export function SettingsPage() {
     }
     return map;
   }, [items]);
-
-  const sections = useMemo(() => buildCategorySections(categories.data || []), [categories.data]);
-  const [activeGroup, setActiveGroup] = useState<string>(sections[0]?.key || "system");
 
   return (
     <section className="space-y-6">
@@ -85,7 +90,7 @@ export function SettingsPage() {
                     onClick={() => setSelectedCategory(cat.key)}
                   >
                     <span className="inline-flex items-center gap-2">
-                      <span>{cat.label}</span>
+                      <span>{getCategoryLabelRu(cat.key, cat.label)}</span>
                       <span className="rounded-full bg-surface/60 px-2 py-0.5 text-[10px] text-textMuted">{cat.items}</span>
                     </span>
                   </button>
@@ -96,10 +101,56 @@ export function SettingsPage() {
         </aside>
 
         <div className="flex-1 space-y-4">
-          {[...grouped.entries()].map(([catKey, defs]) => (
+          {settings.isLoading ? (
+            <div className="grid gap-3 md:grid-cols-2">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <div key={i} className="h-24 rounded-2xl border border-outline/30 bg-surface/30 animate-pulse" />
+              ))}
+            </div>
+          ) : settings.isError ? (
+            <div className="rounded-2xl border border-danger/30 bg-danger/10 p-4 text-danger">
+              Не удалось загрузить настройки. Проверьте подключение к API.
+            </div>
+          ) : (settings.data || []).length === 0 ? (
+            <div className="rounded-2xl border border-outline/40 bg-surfaceMuted/40 p-6 text-center text-textMuted">
+              Ничего не найдено. Измените фильтр или категорию.
+            </div>
+          ) : null}
+
+          {selectedCategory
+            ? [...grouped.entries()]
+                .filter(([catKey]) => catKey === selectedCategory)
+                .map(([catKey, defs]) => (
+                  <section key={catKey} className="space-y-3">
+                    <h2 className="text-sm font-semibold text-white/80">
+                      {getCategoryLabelRu(catKey, (categories.data || []).find((c) => c.key === catKey)?.label ?? catKey)}
+                    </h2>
+                    <div className="grid gap-3 md:grid-cols-2">
+                      {defs.map((def) => {
+                        const meta = getSettingMeta(def.key, def.name);
+                        return (
+                        <SettingRow
+                          key={def.key}
+                          defKey={def.key}
+                          title={meta.title}
+                          description={meta.description}
+                          type={def.type}
+                          value={def.current}
+                          original={def.original}
+                          hasOverride={def.has_override}
+                          choices={def.choices}
+                          onSave={(value) => updateMut.mutate({ key: def.key, value })}
+                          onReset={() => resetMut.mutate(def.key)}
+                        />
+                        );
+                      })}
+                    </div>
+                  </section>
+                ))
+            : [...grouped.entries()].map(([catKey, defs]) => (
             <section key={catKey} className="space-y-3">
               <h2 className="text-sm font-semibold text-white/80">
-                {(categories.data || []).find((c) => c.key === catKey)?.label ?? catKey}
+                {getCategoryLabelRu(catKey, (categories.data || []).find((c) => c.key === catKey)?.label ?? catKey)}
               </h2>
               <div className="grid gap-3 md:grid-cols-2">
                 {defs.map((def) => {
@@ -122,7 +173,7 @@ export function SettingsPage() {
                 })}
               </div>
             </section>
-          ))}
+            ))}
         </div>
       </div>
     </section>
@@ -146,26 +197,33 @@ function SettingRow(props: {
   const isNumber = type.toLowerCase() === "int" || type.toLowerCase() === "float" || type.toLowerCase() === "number";
   const [draft, setDraft] = useState<string>(String(value ?? ""));
   const descText = description || guessDescription(type, choices, defKey);
+  const dirty = String(value ?? "") !== draft;
+  const showDefault = props.original !== undefined && props.original !== null && String(props.original) !== String(value ?? "");
 
   return (
     <div className="rounded-2xl border border-outline/40 bg-surfaceMuted/40 p-3 transition-colors hover:border-primary/30 hover:bg-surface/60">
-      <div className="flex items-center justify-between gap-2">
-        <div>
-          <p className="text-sm font-semibold text-white">{title}</p>
-          <p className="mt-0.5 text-xs text-textMuted">{descText}</p>
-          {/* Тип и значение по умолчанию скрыты по требованию */}
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="flex items-center gap-2 text-sm font-semibold text-white">
+            {title}
+            <Info className="h-3.5 w-3.5 text-textMuted/70" title={descText} />
+          </p>
+          <p className="mt-0.5 line-clamp-2 text-xs text-textMuted" title={descText}>{descText}</p>
+          {showDefault ? (
+            <p className="mt-1 text-[10px] text-textMuted/80">По умолчанию: <span className="font-medium text-slate-200">{String(props.original)}</span></p>
+          ) : null}
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex shrink-0 items-center gap-2">
           {!isBoolean && (value === null || value === undefined || String(value).trim() === "") ? (
             <span className="rounded-full bg-danger/20 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-danger">требует настройки</span>
           ) : null}
           {hasOverride ? (
-            <span className="rounded-full bg-warning/15 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-warning">override</span>
+            <span className="rounded-full bg-warning/15 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-warning">переопределено</span>
           ) : null}
         </div>
       </div>
 
-      <div className="mt-3 grid gap-2 sm:grid-cols-[1fr_auto_auto]">
+      <div className="mt-3 grid gap-2 sm:grid-cols-[1fr_auto_auto] md:grid-cols-[minmax(0,1fr)_auto_auto]">
         {isBoolean ? (
           <button
             className="inline-flex items-center gap-2 rounded-xl bg-background/70 px-3 py-2 text-sm text-slate-100"
@@ -175,38 +233,59 @@ function SettingRow(props: {
             {draft === "true" ? "Включено" : "Выключено"}
           </button>
         ) : choices && choices.length > 0 ? (
-          <select
-            className="rounded-xl border border-outline/40 bg-background/70 px-3 py-2 text-sm text-slate-100"
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-          >
-            {choices.map((opt) => (
-              <option key={String(opt.value)} value={String(opt.value)}>
-                {opt.label}
-              </option>
-            ))}
-          </select>
+          <div className="flex flex-col gap-1">
+            <select
+              className="rounded-xl border border-outline/40 bg-background/70 px-3 py-2 text-sm text-slate-100"
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+            >
+              {choices.map((opt) => (
+                <option key={String(opt.value)} value={String(opt.value)}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+            {(() => {
+              const selected = choices.find((c) => String(c.value) === String(draft));
+              if (!selected?.description) return null;
+              return <p className="text-[11px] text-textMuted">{selected.description}</p>;
+            })()}
+          </div>
         ) : (
-          <input
-            className="rounded-xl border border-outline/40 bg-background/70 px-3 py-2 text-sm text-slate-100"
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            placeholder="Введите значение"
-            inputMode={isNumber ? "numeric" : undefined}
-          />
+          <div className="flex items-stretch gap-2">
+            <input
+              className="w-full rounded-xl border border-outline/40 bg-background/70 px-3 py-2 text-sm text-slate-100"
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              placeholder="Введите значение"
+              inputMode={isNumber ? "numeric" : undefined}
+            />
+            {isNumber ? (
+              <div className="flex items-center gap-1">
+                <button className="rounded-lg border border-outline/40 px-2 py-1 text-sm text-slate-200 hover:bg-surface/70" onClick={() => setDraft(String((parseFloat(draft) || 0) - 1))}>
+                  −
+                </button>
+                <button className="rounded-lg border border-outline/40 px-2 py-1 text-sm text-slate-200 hover:bg-surface/70" onClick={() => setDraft(String((parseFloat(draft) || 0) + 1))}>
+                  +
+                </button>
+              </div>
+            ) : null}
+          </div>
         )}
 
         <button
-          className={`inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold ${String(value ?? "") === draft ? "cursor-not-allowed bg-primary/10 text-primary/60" : "bg-primary/20 text-primary hover:bg-primary/30"}`}
+          className={`inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold ${!dirty ? "cursor-not-allowed bg-primary/10 text-primary/60" : "bg-primary/20 text-primary hover:bg-primary/30"}`}
           onClick={() => onSave(coerceDraft(draft, type))}
-          disabled={String(value ?? "") === draft}
+          disabled={!dirty}
         >
           <Check className="h-4 w-4" />
           Сохранить
         </button>
         <button
           className="inline-flex items-center gap-2 rounded-xl border border-outline/40 bg-transparent px-3 py-2 text-sm text-textMuted hover:bg-surface/70 hover:text-slate-100"
-          onClick={onReset}
+          onClick={() => {
+            if (confirm("Сбросить значение к настройке по умолчанию?")) onReset();
+          }}
         >
           <RefreshCw className="h-4 w-4" />
           Сбросить
@@ -272,6 +351,10 @@ function buildCategorySections(categories: Array<{ key: string; label: string; i
     const s = sectionOf(cat.key);
     if (!groups.has(s.key)) groups.set(s.key, { ...s, categories: [] });
     groups.get(s.key)!.categories.push(cat);
+  }
+  // sort categories by translated label
+  for (const g of groups.values()) {
+    g.categories.sort((a, b) => getCategoryLabelRu(a.key, a.label).localeCompare(getCategoryLabelRu(b.key, b.label), "ru"));
   }
   return Array.from(groups.values());
 }
@@ -503,6 +586,16 @@ function translateToRussian(phrase: string): string {
     version: "версия",
     redis: "Redis",
     database: "база данных",
+    email: "email",
+    secret: "секрет",
+    subject: "предмет",
+    receipt: "чек",
+    shop: "магазин",
+    return: "возврата",
+    update: "обновление",
+    language: "язык",
+    allowed: "разрешённые",
+    origins: "домены",
   };
   const words = phrase
     .replace(/[_-]+/g, " ")
@@ -567,6 +660,42 @@ function getGenericMetaByPattern(key: string): { title: string; description?: st
     // Generic fallback for BACKUP_ prefix
     (t.startsWith("BACKUP_") ? { title: "Параметр бэкапов", description: "Настройка системы резервного копирования." } : null)
   );
+}
+
+function getCategoryLabelRu(key: string, fallback: string): string {
+  const map: Record<string, string> = {
+    PAYMENT: "Платежи",
+    YOOKASSA: "YooKassa",
+    CRYPTOBOT: "CryptoBot",
+    MULENPAY: "MulenPay",
+    PAL24: "Pal24/PayPalych",
+    TRIBUTE: "Tribute",
+    TELEGRAM: "Telegram/Stars",
+    REMNAWAVE: "RemnaWave",
+    WEBHOOK: "Вебхуки",
+    MINIAPP: "Mini App",
+    LOCALIZATION: "Локализация",
+    INTERFACE: "Интерфейс",
+    CONNECT_BUTTON: "Кнопка подключения",
+    PAID_SUBSCRIPTION: "Платная подписка",
+    TRIAL: "Триал",
+    PERIODS: "Периоды",
+    SUBSCRIPTION: "Подписка",
+    TRAFFIC: "Трафик",
+    REFERRAL: "Рефералы",
+    AUTOPAY: "Автоплатёж",
+    WEB_API: "Веб‑API",
+    MAINTENANCE: "Обслуживание",
+    MONITORING: "Мониторинг",
+    SERVER: "Сервер",
+    BACKUP: "Бэкапы",
+    VERSION: "Версии",
+    REDIS: "Redis",
+    LOG: "Логи",
+    OTHER: "Прочее",
+  };
+  const topKey = Object.keys(map).find((prefix) => key.toUpperCase().startsWith(prefix));
+  return topKey ? map[topKey] : fallback;
 }
 
 

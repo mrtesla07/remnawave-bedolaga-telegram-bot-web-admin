@@ -59,7 +59,8 @@ async def create_broadcast(
     db: AsyncSession = Depends(get_db_session),
 ) -> BroadcastResponse:
     message_text = payload.message_text.strip()
-    if not message_text:
+    # Allow empty message if media caption is provided (validated in schema too)
+    if not message_text and not (payload.media and (payload.media.caption or "").strip()):
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Message text must not be empty")
 
     media_payload = payload.media
@@ -87,7 +88,7 @@ async def create_broadcast(
         media_config = BroadcastMediaConfig(
             type=media_payload.type,
             file_id=media_payload.file_id,
-            caption=media_payload.caption or message_text,
+            caption=(media_payload.caption or message_text) or None,
         )
 
     config = BroadcastConfig(
@@ -131,7 +132,7 @@ async def upload_broadcast_media(
 
     bot = Bot(token=token)
     try:
-        input_file = BufferedInputFile(data=data, filename=file.filename or "upload")
+        input_file = BufferedInputFile(file=data, filename=file.filename or "upload")
         sent = None
         file_id: Optional[str] = None
         if media_type == "photo":
@@ -152,6 +153,7 @@ async def upload_broadcast_media(
         except Exception:
             pass
 
+        # Absolute preview URL is constructed on the client; keep path relative for backward compat
         preview_url = f"/broadcasts/media/{file_id}"
         return {"file_id": file_id, "type": media_type, "caption": caption, "preview_url": preview_url}
     finally:
@@ -164,7 +166,6 @@ async def upload_broadcast_media(
 @router.get("/media/{file_id}")
 async def get_broadcast_media(
     file_id: str,
-    _: Any = Depends(require_api_token),
 ):
     token = getattr(settings, "BOT_TOKEN", None)
     if not token:

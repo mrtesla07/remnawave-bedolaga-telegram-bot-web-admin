@@ -47,7 +47,11 @@ export default function BroadcastsPage() {
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const canSubmit = useMemo(() => message.trim().length > 0 && !loading, [message, loading]);
+  const canSubmit = useMemo(() => {
+    const hasText = message.trim().length > 0;
+    const hasCaption = (mediaCaption || "").trim().length > 0 && !!mediaType && !!mediaFileId;
+    return (hasText || hasCaption) && !loading;
+  }, [message, loading, mediaCaption, mediaType, mediaFileId]);
 
   async function loadList() {
     try {
@@ -76,7 +80,8 @@ export default function BroadcastsPage() {
         selected_buttons: selectedButtons,
       };
       if (mediaType && mediaFileId) {
-        payload.media = { type: mediaType, file_id: mediaFileId, caption: mediaCaption || message };
+        const caption = (mediaCaption || message || "").trim();
+        payload.media = { type: mediaType as any, file_id: mediaFileId, caption: caption || undefined };
       }
       await createBroadcast(payload);
       setMessage("");

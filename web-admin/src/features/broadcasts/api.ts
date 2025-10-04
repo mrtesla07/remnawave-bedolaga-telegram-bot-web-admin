@@ -6,4 +6,18 @@ export async function fetchBroadcasts(params: { limit?: number; offset?: number 
 export async function createBroadcast(payload: BroadcastCreatePayload): Promise<BroadcastItem> { const { data } = await apiClient.post<BroadcastItem>("/broadcasts", payload); return data; }
 export async function stopBroadcast(id: number): Promise<BroadcastItem> { const { data } = await apiClient.post<BroadcastItem>(`/broadcasts/${id}/stop`); return data; }
 export interface BroadcastUploadResponse { file_id: string; type: "photo" | "video" | "document"; caption?: string | null; preview_url?: string }
-export async function uploadBroadcastMedia(file: File, type: "photo" | "video" | "document", caption?: string | null): Promise<BroadcastUploadResponse> { const form = new FormData(); form.append("media_type", type); form.append("file", file); if (caption) form.append("caption", caption); const { data } = await apiClient.post<BroadcastUploadResponse>("/broadcasts/media/upload", form, { headers: { "Content-Type": "multipart/form-data" } }); return data; }
+export async function uploadBroadcastMedia(file: File, type: "photo" | "video" | "document", caption?: string | null): Promise<BroadcastUploadResponse> {
+  const form = new FormData();
+  form.append("media_type", type);
+  form.append("file", file);
+  if (caption) form.append("caption", caption);
+  const { data } = await apiClient.post<BroadcastUploadResponse>("/broadcasts/media/upload", form, { headers: { "Content-Type": "multipart/form-data" } });
+  const base = (apiClient.defaults.baseURL || "").toString().replace(/\/$/, "");
+  if (data?.preview_url && base) {
+    try {
+      const u = new URL(data.preview_url, base);
+      (data as any).preview_url = u.toString();
+    } catch {}
+  }
+  return data;
+}
