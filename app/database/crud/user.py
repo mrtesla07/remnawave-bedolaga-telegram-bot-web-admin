@@ -19,6 +19,10 @@ from app.database.models import (
 )
 from app.config import settings
 from app.database.crud.promo_group import get_default_promo_group
+try:
+    from app.webapi.routes.notifications import broker as sse_broker  # type: ignore
+except Exception:  # pragma: no cover
+    sse_broker = None  # type: ignore
 from app.utils.validators import sanitize_telegram_name
 
 logger = logging.getLogger(__name__)
@@ -137,33 +141,32 @@ async def create_user(
         default_group = await _get_or_create_default_promo_group(db)
         promo_group_id = default_group.id
 
-        safe_first = sanitize_telegram_name(first_name)
-        safe_last = sanitize_telegram_name(last_name)
-        user = User(
-            telegram_id=telegram_id,
-            username=username,
-            first_name=safe_first,
-            last_name=safe_last,
-            language=language,
-            referred_by_id=referred_by_id,
-            referral_code=referral_code,
-            balance_kopeks=0,
-            has_had_paid_subscription=False,
-            has_made_first_topup=False,
-            promo_group_id=promo_group_id,
-        )
+    safe_first = sanitize_telegram_name(first_name)
+    safe_last = sanitize_telegram_name(last_name)
+    user = User(
+        telegram_id=telegram_id,
+        username=username,
+        first_name=safe_first,
+        last_name=safe_last,
+        language=language,
+        referred_by_id=referred_by_id,
+        referral_code=referral_code,
+        balance_kopeks=0,
+        has_had_paid_subscription=False,
+        has_made_first_topup=False,
+        promo_group_id=promo_group_id,
+    )
+    
+    db.add(user)
+    await db.commit()
+    await db.refresh(user)
+    
+    if default_group:
+        user.promo_group = default_group
 
-        db.add(user)
+    logger.info(f"✅ Создан пользователь {telegram_id} с реферальным кодом {referral_code}")
 
-        try:
-            await db.commit()
-            await db.refresh(user)
-
-            user.promo_group = default_group
-            logger.info(
-                f"✅ Создан пользователь {telegram_id} с реферальным кодом {referral_code}"
-            )
-            return user
+    return user
 
         except IntegrityError as exc:
             await db.rollback()
@@ -235,6 +238,11 @@ async def add_user_balance(
         
         await db.commit()
         await db.refresh(user)
+        try:
+            if sse_broker is not None:
+                await sse_broker.publish("users.update")
+        except Exception:
+            pass
         
         
         logger.info(f"💰 Баланс пользователя {user.telegram_id} изменен: {old_balance} → {user.balance_kopeks} (изменение: +{amount_kopeks})")
@@ -290,6 +298,11 @@ async def subtract_user_balance(
         
         await db.commit()
         await db.refresh(user)
+        try:
+            if sse_broker is not None:
+                await sse_broker.publish("users.update")
+        except Exception:
+            pass
 
         if create_transaction:
             from app.database.crud.transaction import (

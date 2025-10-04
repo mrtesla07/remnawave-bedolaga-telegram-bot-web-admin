@@ -17,6 +17,7 @@ from .routes import (
     promo_groups,
     remnawave,
     stats,
+    system_metrics,
     subscriptions,
     tickets,
     tokens,
@@ -73,18 +74,21 @@ OPENAPI_TAGS = [
         "name": "miniapp",
         "description": "Endpoint для Telegram Mini App с информацией о подписке пользователя.",
     },
+    {
+        "name": "monitoring",
+        "description": "Endpoints for collecting infrastructure metrics from remote agents.",
+    },
 ]
 
 
 def create_web_api_app() -> FastAPI:
-    docs_config = settings.get_web_api_docs_config()
-
+    # Docs served dynamically through routes/apidocs depending on setting
     app = FastAPI(
         title=settings.WEB_API_TITLE,
         version=settings.WEB_API_VERSION,
-        docs_url=docs_config.get("docs_url"),
-        redoc_url=docs_config.get("redoc_url"),
-        openapi_url=docs_config.get("openapi_url"),
+        docs_url=None,
+        redoc_url=None,
+        openapi_url=None,
         openapi_tags=OPENAPI_TAGS,
         swagger_ui_parameters={"persistAuthorization": True},
     )
@@ -102,7 +106,14 @@ def create_web_api_app() -> FastAPI:
         app.add_middleware(RequestLoggingMiddleware)
 
     app.include_router(health.router)
+    from .routes import apidocs
+    app.include_router(apidocs.router)
+    from .routes import notifications
+    app.include_router(notifications.router, prefix="/notifications", tags=["notifications"]) 
+    from .routes import auth as auth_routes
+    app.include_router(auth_routes.router)
     app.include_router(stats.router, prefix="/stats", tags=["stats"])
+    app.include_router(system_metrics.router)
     app.include_router(config.router, prefix="/settings", tags=["settings"])
     app.include_router(users.router, prefix="/users", tags=["users"])
     app.include_router(subscriptions.router, prefix="/subscriptions", tags=["subscriptions"])
@@ -111,6 +122,8 @@ def create_web_api_app() -> FastAPI:
     app.include_router(promo_groups.router, prefix="/promo-groups", tags=["promo-groups"])
     app.include_router(promocodes.router, prefix="/promo-codes", tags=["promo-codes"])
     app.include_router(broadcasts.router, prefix="/broadcasts", tags=["broadcasts"])
+    from .routes import logs as logs_routes
+    app.include_router(logs_routes.router)
     app.include_router(backups.router, prefix="/backups", tags=["backups"])
     app.include_router(campaigns.router, prefix="/campaigns", tags=["campaigns"])
     app.include_router(tokens.router, prefix="/tokens", tags=["auth"])

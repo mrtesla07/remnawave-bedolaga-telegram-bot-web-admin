@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.services.system_settings_service import bot_configuration_service
 
 from ..dependencies import get_db_session, require_api_token
+from .notifications import broker
 from ..schemas.config import (
     SettingCategoryRef,
     SettingCategorySummary,
@@ -156,6 +157,11 @@ async def update_setting(
     await bot_configuration_service.set_value(db, key, value)
     await db.commit()
 
+    try:
+        await broker.publish("settings.update")
+    except Exception:
+        pass
+
     return _serialize_definition(definition)
 
 
@@ -172,4 +178,8 @@ async def reset_setting(
 
     await bot_configuration_service.reset_value(db, key)
     await db.commit()
+    try:
+        await broker.publish("settings.update")
+    except Exception:
+        pass
     return _serialize_definition(definition)
