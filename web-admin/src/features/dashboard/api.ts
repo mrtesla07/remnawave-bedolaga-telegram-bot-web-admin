@@ -243,6 +243,34 @@ function pickString(source: Record<string, unknown>, keys: string[]): string | u
   return undefined;
 }
 
+// Attempts to read a timestamp and return epoch milliseconds
+function pickTimestampMs(source: Record<string, unknown>, keys: string[]): number {
+  for (const key of keys) {
+    if (key in source) {
+      const raw = (source as Record<string, unknown>)[key];
+      if (typeof raw === "number" && Number.isFinite(raw)) {
+        // Heuristic: treat as ms if it's large enough, otherwise seconds
+        const asNumber = raw;
+        return asNumber > 1e12 ? asNumber : asNumber * 1000;
+      }
+      if (typeof raw === "string") {
+        const trimmed = raw.trim();
+        // Try numeric string first
+        const asNum = Number.parseFloat(trimmed);
+        if (Number.isFinite(asNum)) {
+          return asNum > 1e12 ? asNum : asNum * 1000;
+        }
+        // Fallback to Date.parse for ISO-like values
+        const parsed = Date.parse(trimmed);
+        if (!Number.isNaN(parsed)) {
+          return parsed;
+        }
+      }
+    }
+  }
+  return 0;
+}
+
 
 function mapHistory(items: Array<Record<string, unknown>>): RevenuePoint[] {
   return items
@@ -451,10 +479,61 @@ export async function fetchServers(): Promise<ServerCardData[]> {
       );
       const temperatureCRaw = pickMetric(realtime, ["temperatureC", "temperature_c", "temperature", "tempC", "temp"], 0);
 
+      // Uptime derivation: hours > seconds > milliseconds > start timestamp
       const uptimeHoursRealtime = pickMetric(realtime, ["uptimeHours", "uptime_hours", "uptimeH"], 0);
       const uptimeSeconds = pickMetric(realtime, ["uptimeSeconds", "uptime_sec", "uptime"], 0);
-      const uptimeHours = uptimeHoursRealtime > 0 ? uptimeHoursRealtime : uptimeSeconds > 0 ? uptimeSeconds / 3600 : 0;
-      const uptimePercentRaw = pickMetric(realtime, ["uptimePercent", "uptime_percent", "uptimeRatio", "uptime_ratio"], 0);
+      const uptimeMilliseconds = pickMetric(realtime, [
+        "uptimeMilliseconds",
+        "uptime_ms",
+        "uptimeMillis",
+        "uptime_milliseconds",
+      ], 0);
+      const uptimeHoursFromStart = (() => {
+        const startedAtMs = pickTimestampMs(realtime, [
+          "startedAt",
+          "startAt",
+          "start_time",
+          "startTime",
+          "bootAt",
+          "boot_at",
+          "bootTime",
+          "boot_time",
+          "since",
+          "uptimeSince",
+          "uptime_since",
+        ]);
+        if (startedAtMs > 0) {
+          const elapsedMs = Date.now() - startedAtMs;
+          return elapsedMs > 0 ? elapsedMs / 3_600_000 : 0;
+        }
+        return 0;
+      })();
+      const uptimeHours =
+        uptimeHoursRealtime > 0
+          ? uptimeHoursRealtime
+          : uptimeSeconds > 0
+          ? uptimeSeconds / 3600
+          : uptimeMilliseconds > 0
+          ? uptimeMilliseconds / 3_600_000
+          : uptimeHoursFromStart;
+      const uptimePercentRaw = pickMetric(
+        realtime,
+        [
+          "uptimePercent",
+          "uptime_percent",
+          "uptimeRatio",
+          "uptime_ratio",
+          "availability",
+          "availabilityPercent",
+          "availability_percent",
+          "uptime24h",
+          "uptime_24h",
+          "uptime_24h_percent",
+          "uptimeDayPercent",
+          "uptime_day_percent",
+        ],
+        0,
+      );
       const uptimePercent = uptimePercentRaw > 0 ? roundTo(uptimePercentRaw, 1) : 100;
 
       const downloadMbps = toMbps(downloadSpeedBps);

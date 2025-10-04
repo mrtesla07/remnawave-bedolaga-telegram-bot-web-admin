@@ -22,6 +22,7 @@ class TicketMessageResponse(BaseModel):
     has_media: bool
     media_type: Optional[str] = None
     media_caption: Optional[str] = None
+    media_file_id: Optional[str] = None
     media_url: Optional[str] = None
     created_at: datetime
 

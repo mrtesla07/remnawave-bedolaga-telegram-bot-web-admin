@@ -329,6 +329,46 @@ class RemnaWaveService:
                         'traffic_limit_bytes': node.traffic_limit_bytes
                     })
                 
+                # Fallback: если для ноды не приходит накопленный трафик из панели,
+                # считаем потребление за текущий месяц и подставляем как used.
+                try:
+                    from datetime import datetime, timedelta
+                    now = datetime.utcnow()
+                    start_of_month = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+                    start_str = start_of_month.isoformat() + "Z"
+                    end_str = now.isoformat() + "Z"
+
+                    for idx, node in enumerate(nodes):
+                        used_present = getattr(node, 'traffic_used_bytes', None)
+                        if isinstance(used_present, int) and used_present > 0:
+                            continue
+
+                        try:
+                            usage_data = await api._make_request(
+                                'GET',
+                                f'/api/nodes/usage/{node.uuid}/users/range',
+                                params={'start': start_str, 'end': end_str}
+                            )
+                            items = usage_data.get('response', []) if isinstance(usage_data, dict) else []
+
+                            total_used = 0
+                            for item in items:
+                                if not isinstance(item, dict):
+                                    continue
+                                if 'totalBytes' in item and isinstance(item.get('totalBytes'), (int, float)):
+                                    total_used += int(item.get('totalBytes') or 0)
+                                else:
+                                    d = int(item.get('downloadBytes') or 0)
+                                    u = int(item.get('uploadBytes') or 0)
+                                    total_used += (d + u)
+
+                            if total_used > 0:
+                                result[idx]['traffic_used_bytes'] = total_used
+                        except Exception as usage_err:
+                            logger.debug(f"Не удалось получить месячное потребление для ноды {node.uuid}: {usage_err}")
+                except Exception as e:
+                    logger.debug(f"Сбой подстановки месячного трафика для нод: {e}")
+
                 logger.info(f"✅ Получено {len(result)} нод из Remnawave")
                 return result
                 
@@ -356,6 +396,38 @@ class RemnaWaveService:
                 if not node:
                     return None
                 
+                traffic_used_bytes = node.traffic_used_bytes or 0
+
+                # Fallback: если нет накопленного трафика — посчитаем за текущий месяц
+                if not traffic_used_bytes:
+                    try:
+                        from datetime import datetime
+                        now = datetime.utcnow()
+                        start_of_month = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+                        start_str = start_of_month.isoformat() + "Z"
+                        end_str = now.isoformat() + "Z"
+
+                        usage_data = await api._make_request(
+                            'GET',
+                            f'/api/nodes/usage/{node.uuid}/users/range',
+                            params={'start': start_str, 'end': end_str}
+                        )
+                        items = usage_data.get('response', []) if isinstance(usage_data, dict) else []
+
+                        total_used = 0
+                        for item in items:
+                            if not isinstance(item, dict):
+                                continue
+                            if 'totalBytes' in item and isinstance(item.get('totalBytes'), (int, float)):
+                                total_used += int(item.get('totalBytes') or 0)
+                            else:
+                                d = int(item.get('downloadBytes') or 0)
+                                u = int(item.get('uploadBytes') or 0)
+                                total_used += (d + u)
+                        traffic_used_bytes = total_used
+                    except Exception as usage_err:
+                        logger.debug(f"Не удалось получить месячное потребление для ноды {node.uuid}: {usage_err}")
+
                 return {
                     "uuid": node.uuid,
                     "name": node.name,
@@ -366,7 +438,7 @@ class RemnaWaveService:
                     "is_node_online": node.is_node_online,
                     "is_xray_running": node.is_xray_running,
                     "users_online": node.users_online or 0,
-                    "traffic_used_bytes": node.traffic_used_bytes or 0,
+                    "traffic_used_bytes": traffic_used_bytes,
                     "traffic_limit_bytes": node.traffic_limit_bytes or 0
                 }
                 

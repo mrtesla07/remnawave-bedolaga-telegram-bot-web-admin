@@ -96,3 +96,21 @@ body {
   @apply inline-flex items-center gap-2 rounded-full bg-surfaceMuted/60 px-4 py-2 text-sm font-semibold text-textMuted transition hover:bg-surfaceMuted/80;
 }
 
+/* Flying sprites (bottle/cigarette) */
+@keyframes flyHoriz {
+  0%   { transform: translateX(-12vw); }
+  100% { transform: translateX(112vw); }
+}
+
+@keyframes drift {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  50% { transform: translateY(-8px) rotate(6deg); }
+}
+
+.animate-flyHoriz { animation: flyHoriz 30s linear infinite; }
+.animate-drift { animation: drift 4.2s ease-in-out infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-flyHoriz, .animate-drift, .animate-bgFloat, .animate-blob, .animate-pulseSoft { animation: none !important; }
+}
+

@@ -11,6 +11,8 @@ export interface TicketMessageDto {
   has_media: boolean;
   media_type?: string | null;
   media_caption?: string | null;
+  media_file_id?: string | null;
+  media_url?: string | null;
   created_at: string;
 }
 

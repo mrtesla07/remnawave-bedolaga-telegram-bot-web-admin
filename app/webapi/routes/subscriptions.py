@@ -21,6 +21,7 @@ from app.database.crud.subscription import (
 from app.database.models import Subscription, SubscriptionStatus
 
 from ..dependencies import get_db_session, require_api_token
+from .notifications import broker
 from ..schemas.subscriptions import (
     SubscriptionCreateRequest,
     SubscriptionDevicesRequest,
@@ -134,6 +135,10 @@ async def create_subscription(
         )
 
     subscription = await _get_subscription(db, subscription.id)
+    try:
+        await broker.publish("subscriptions.update")
+    except Exception:
+        pass
     return _serialize_subscription(subscription)
 
 
@@ -147,6 +152,10 @@ async def extend_subscription_endpoint(
     subscription = await _get_subscription(db, subscription_id)
     subscription = await extend_subscription(db, subscription, payload.days)
     subscription = await _get_subscription(db, subscription.id)
+    try:
+        await broker.publish("subscriptions.update")
+    except Exception:
+        pass
     return _serialize_subscription(subscription)
 
 
@@ -160,6 +169,10 @@ async def add_subscription_traffic_endpoint(
     subscription = await _get_subscription(db, subscription_id)
     subscription = await add_subscription_traffic(db, subscription, payload.gb)
     subscription = await _get_subscription(db, subscription.id)
+    try:
+        await broker.publish("subscriptions.update")
+    except Exception:
+        pass
     return _serialize_subscription(subscription)
 
 
@@ -173,6 +186,10 @@ async def add_subscription_devices_endpoint(
     subscription = await _get_subscription(db, subscription_id)
     subscription = await add_subscription_devices(db, subscription, payload.devices)
     subscription = await _get_subscription(db, subscription.id)
+    try:
+        await broker.publish("subscriptions.update")
+    except Exception:
+        pass
     return _serialize_subscription(subscription)
 
 
@@ -189,6 +206,10 @@ async def add_subscription_squad_endpoint(
     subscription = await _get_subscription(db, subscription_id)
     subscription = await add_subscription_squad(db, subscription, payload.squad_uuid)
     subscription = await _get_subscription(db, subscription.id)
+    try:
+        await broker.publish("subscriptions.update")
+    except Exception:
+        pass
     return _serialize_subscription(subscription)
 
 
@@ -202,4 +223,8 @@ async def remove_subscription_squad_endpoint(
     subscription = await _get_subscription(db, subscription_id)
     subscription = await remove_subscription_squad(db, subscription, squad_uuid)
     subscription = await _get_subscription(db, subscription.id)
+    try:
+        await broker.publish("subscriptions.update")
+    except Exception:
+        pass
     return _serialize_subscription(subscription)

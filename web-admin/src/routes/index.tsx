@@ -40,9 +40,9 @@ const placeholderRoutes = [
 ];
 
 function RequireAuth({ children }: { children: ReactNode }) {
-  const { jwtToken } = useAuthStore.getState();
+  const jwtToken = useAuthStore((s) => s.jwtToken);
   if (!jwtToken) return <Navigate to="/auth" replace />;
-  return children;
+  return children as any;
 }
 
 const router = createBrowserRouter([

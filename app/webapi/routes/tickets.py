@@ -3,8 +3,9 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Security, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Security, status
 from fastapi.responses import StreamingResponse
+from starlette.background import BackgroundTask
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database.crud.ticket import TicketCRUD
@@ -14,6 +15,7 @@ from sqlalchemy import select
 import aiohttp
 
 from ..dependencies import get_db_session, require_api_token
+from .notifications import broker
 from ..schemas.tickets import (
     TicketMessageResponse,
     TicketPriorityUpdateRequest,
@@ -26,7 +28,30 @@ from ..schemas.tickets import (
 router = APIRouter()
 
 
-def _serialize_message(message: TicketMessage) -> TicketMessageResponse:
+def _serialize_message(
+    message: TicketMessage,
+    *,
+    request: Optional[Request] = None,
+) -> TicketMessageResponse:
+    media_url: Optional[str] = None
+    media_file_id = getattr(message, "media_file_id", None)
+    if request and message.has_media and media_file_id:
+        try:
+            base_url = request.url_for(
+                "get_ticket_message_media",
+                ticket_id=str(message.ticket_id),
+                message_id=str(message.id),
+            )
+            api_key = request.headers.get("X-API-Key")
+            # If API key is present in headers, append as query for browser <img> access
+            if api_key:
+                sep = "&" if ("?" in str(base_url)) else "?"
+                media_url = f"{base_url}{sep}api_key={api_key}"
+            else:
+                media_url = str(base_url)
+        except Exception:
+            media_url = None
+
     return TicketMessageResponse(
         id=message.id,
         user_id=message.user_id,
@@ -35,11 +60,18 @@ def _serialize_message(message: TicketMessage) -> TicketMessageResponse:
         has_media=message.has_media,
         media_type=message.media_type,
         media_caption=message.media_caption,
+        media_file_id=media_file_id,
+        media_url=media_url,
         created_at=message.created_at,
     )
 
 
-def _serialize_ticket(ticket: Ticket, include_messages: bool = False) -> TicketResponse:
+def _serialize_ticket(
+    ticket: Ticket,
+    *,
+    include_messages: bool = False,
+    request: Optional[Request] = None,
+) -> TicketResponse:
     messages = []
     if include_messages:
         messages = sorted(ticket.messages, key=lambda m: m.created_at)
@@ -55,12 +87,13 @@ def _serialize_ticket(ticket: Ticket, include_messages: bool = False) -> TicketR
         closed_at=ticket.closed_at,
         user_reply_block_permanent=ticket.user_reply_block_permanent,
         user_reply_block_until=ticket.user_reply_block_until,
-        messages=[_serialize_message(message) for message in messages],
+        messages=[_serialize_message(message, request=request) for message in messages],
     )
 
 
 @router.get("", response_model=list[TicketResponse])
 async def list_tickets(
+    request: Request,
     _: Any = Security(require_api_token),
     db: AsyncSession = Depends(get_db_session),
     limit: int = Query(50, ge=1, le=200),
@@ -88,25 +121,27 @@ async def list_tickets(
             offset=offset,
         )
 
-    return [_serialize_ticket(ticket) for ticket in tickets]
+    return [_serialize_ticket(ticket, request=request) for ticket in tickets]
 
 
 @router.get("/{ticket_id}", response_model=TicketResponse)
 async def get_ticket(
     ticket_id: int,
+    request: Request,
     _: Any = Security(require_api_token),
     db: AsyncSession = Depends(get_db_session),
 ) -> TicketResponse:
     ticket = await TicketCRUD.get_ticket_by_id(db, ticket_id, load_messages=True, load_user=False)
     if not ticket:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Ticket not found")
-    return _serialize_ticket(ticket, include_messages=True)
+    return _serialize_ticket(ticket, include_messages=True, request=request)
 
 
 @router.post("/{ticket_id}/status", response_model=TicketResponse)
 async def update_ticket_status(
     ticket_id: int,
     payload: TicketStatusUpdateRequest,
+    request: Request,
     _: Any = Security(require_api_token),
     db: AsyncSession = Depends(get_db_session),
 ) -> TicketResponse:
@@ -121,13 +156,19 @@ async def update_ticket_status(
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Ticket not found")
 
     ticket = await TicketCRUD.get_ticket_by_id(db, ticket_id, load_messages=True, load_user=False)
-    return _serialize_ticket(ticket, include_messages=True)
+    try:
+        await broker.publish("ticket.update")
+        await broker.publish(f"ticket.status:{ticket.id}")
+    except Exception:
+        pass
+    return _serialize_ticket(ticket, include_messages=True, request=request)
 
 
 @router.post("/{ticket_id}/priority", response_model=TicketResponse)
 async def update_ticket_priority(
     ticket_id: int,
     payload: TicketPriorityUpdateRequest,
+    request: Request,
     _: Any = Security(require_api_token),
     db: AsyncSession = Depends(get_db_session),
 ) -> TicketResponse:
@@ -144,13 +185,19 @@ async def update_ticket_priority(
     await db.commit()
 
     ticket = await TicketCRUD.get_ticket_by_id(db, ticket_id, load_messages=True, load_user=False)
-    return _serialize_ticket(ticket, include_messages=True)
+    try:
+        await broker.publish("ticket.update")
+        await broker.publish(f"ticket.priority:{ticket.id}")
+    except Exception:
+        pass
+    return _serialize_ticket(ticket, include_messages=True, request=request)
 
 
 @router.post("/{ticket_id}/reply-block", response_model=TicketResponse)
 async def update_reply_block(
     ticket_id: int,
     payload: TicketReplyBlockRequest,
+    request: Request,
     _: Any = Security(require_api_token),
     db: AsyncSession = Depends(get_db_session),
 ) -> TicketResponse:
@@ -168,12 +215,18 @@ async def update_reply_block(
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Ticket not found")
 
     ticket = await TicketCRUD.get_ticket_by_id(db, ticket_id, load_messages=True, load_user=False)
-    return _serialize_ticket(ticket, include_messages=True)
+    try:
+        await broker.publish("ticket.update")
+        await broker.publish(f"ticket.block:{ticket.id}")
+    except Exception:
+        pass
+    return _serialize_ticket(ticket, include_messages=True, request=request)
 
 
 @router.delete("/{ticket_id}/reply-block", response_model=TicketResponse)
 async def clear_reply_block(
     ticket_id: int,
+    request: Request,
     _: Any = Security(require_api_token),
     db: AsyncSession = Depends(get_db_session),
 ) -> TicketResponse:
@@ -187,13 +240,19 @@ async def clear_reply_block(
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Ticket not found")
 
     ticket = await TicketCRUD.get_ticket_by_id(db, ticket_id, load_messages=True, load_user=False)
-    return _serialize_ticket(ticket, include_messages=True)
+    try:
+        await broker.publish("ticket.update")
+        await broker.publish(f"ticket.block:{ticket.id}")
+    except Exception:
+        pass
+    return _serialize_ticket(ticket, include_messages=True, request=request)
 
 
 @router.post("/{ticket_id}/reply", response_model=TicketResponse)
 async def reply_to_ticket(
     ticket_id: int,
     payload: TicketReplyRequest,
+    request: Request,
     _: Any = Security(require_api_token),
     db: AsyncSession = Depends(get_db_session),
 ) -> TicketResponse:
@@ -217,7 +276,12 @@ async def reply_to_ticket(
 
     # Вернём обновлённый тикет с сообщениями
     ticket = await TicketCRUD.get_ticket_by_id(db, ticket_id, load_messages=True, load_user=False)
-    return _serialize_ticket(ticket, include_messages=True)
+    try:
+        await broker.publish("ticket.update")
+        await broker.publish(f"ticket.message:{ticket.id}")
+    except Exception:
+        pass
+    return _serialize_ticket(ticket, include_messages=True, request=request)
 
 
 @router.get("/{ticket_id}/messages/{message_id}/media")
@@ -246,14 +310,18 @@ async def get_ticket_message_media(
     file_api = f"{api_base}/getFile?file_id={message.media_file_id}"
 
     session_timeout = aiohttp.ClientTimeout(total=30)
-    async with aiohttp.ClientSession(timeout=session_timeout) as sess:
-        async with sess.get(file_api) as resp:
+    sess = aiohttp.ClientSession(timeout=session_timeout)
+    try:
+        resp = await sess.get(file_api)
+        try:
             if resp.status != 200:
                 raise HTTPException(status.HTTP_502_BAD_GATEWAY, "Failed to resolve media")
             payload = await resp.json()
             file_path = payload.get("result", {}).get("file_path")
             if not file_path:
                 raise HTTPException(status.HTTP_404_NOT_FOUND, "File path not found")
+        finally:
+            await resp.release()
 
         file_url = f"https://api.telegram.org/file/bot{bot_token}/{file_path}"
         upstream = await sess.get(file_url)
@@ -274,4 +342,9 @@ async def get_ticket_message_media(
             finally:
                 await upstream.release()
 
-        return StreamingResponse(streamer(), headers=headers)
+        background = BackgroundTask(sess.close)
+        return StreamingResponse(streamer(), headers=headers, background=background)
+    except Exception:
+        # Ensure session is closed on any error path
+        await sess.close()
+        raise

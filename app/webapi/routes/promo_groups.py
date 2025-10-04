@@ -19,6 +19,7 @@ from app.database.crud.promo_group import (
 from app.database.models import PromoGroup
 
 from ..dependencies import get_db_session, require_api_token
+from .notifications import broker
 from ..schemas.promo_groups import (
     PromoGroupCreateRequest,
     PromoGroupListResponse,
@@ -131,6 +132,10 @@ async def create_promo_group_endpoint(
             status.HTTP_400_BAD_REQUEST,
             "Promo group with this name already exists",
         ) from exc
+    try:
+        await broker.publish("promo_groups.update")
+    except Exception:
+        pass
     return _serialize(group, members_count=0)
 
 
@@ -165,6 +170,10 @@ async def update_promo_group_endpoint(
             "Promo group with this name already exists",
         ) from exc
     members_count = await count_promo_group_members(db, group_id)
+    try:
+        await broker.publish("promo_groups.update")
+    except Exception:
+        pass
     return _serialize(group, members_count=members_count)
 
 
@@ -182,4 +191,8 @@ async def delete_promo_group_endpoint(
     if not success:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Cannot delete default promo group")
 
+    try:
+        await broker.publish("promo_groups.update")
+    except Exception:
+        pass
     return Response(status_code=status.HTTP_204_NO_CONTENT)

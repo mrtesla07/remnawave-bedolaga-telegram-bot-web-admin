@@ -27,14 +27,12 @@ apiClient.interceptors.request.use((config) => {
   } catch {
     isAuthPath = rawUrl.startsWith("/auth") || rawUrl.startsWith("auth/");
   }
-  // Send JWT only for /auth endpoints (e.g., /auth/me). For API endpoints rely on X-API-Key.
+  // Prefer Bearer JWT for all endpoints if available; fall back to legacy X-API-Key
   const hasAuthHeader = !!(headers as any).Authorization;
-  if (!hasAuthHeader) {
-    if (isAuthPath && jwtToken) {
-      headers.Authorization = `Bearer ${jwtToken}`;
-    }
+  if (!hasAuthHeader && jwtToken) {
+    headers.Authorization = `Bearer ${jwtToken}`;
   }
-  if (token) headers["X-API-Key"] = token;
+  if (!jwtToken && token) headers["X-API-Key"] = token;
   headers["X-Requested-With"] = "BedolagaAdminUI";
   config.headers = headers;
   return config;
@@ -55,17 +53,15 @@ apiClient.interceptors.response.use(
         isAuthPath = rawUrl.startsWith("/auth") || rawUrl.startsWith("auth/");
       }
 
-      const { token, jwtToken } = authStore.getState();
-      if (isAuthPath) {
-        // Не вмешиваемся в JWT автоматически. Страница авторизации сама обновит токен при логине.
-      } else {
-        // Для обычных API: если JWT есть, но токена нет — оставляем как есть (пусть откроется диалог токена)
-        if (jwtToken && !token) {
-          // no-op
-        } else {
-          // иначе сбросим только X-API-Key
-          authStore.setState({ token: null });
-        }
+      if (!isAuthPath) {
+        // Full logout on unauthorized to avoid zombie sessions
+        authStore.setState({ token: null, jwtToken: null, username: null, name: null });
+        try {
+          if (typeof window !== "undefined") {
+            const current = String(window.location?.pathname || "");
+            if (current !== "/auth") window.location.assign("/auth");
+          }
+        } catch {}
       }
     }
     if (error.response?.status === 403) {

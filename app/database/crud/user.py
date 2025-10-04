@@ -18,6 +18,10 @@ from app.database.models import (
 )
 from app.config import settings
 from app.database.crud.promo_group import get_default_promo_group
+try:
+    from app.webapi.routes.notifications import broker as sse_broker  # type: ignore
+except Exception:  # pragma: no cover
+    sse_broker = None  # type: ignore
 from app.utils.validators import sanitize_telegram_name
 
 logger = logging.getLogger(__name__)
@@ -138,6 +142,13 @@ async def create_user(
 
     logger.info(f"✅ Создан пользователь {telegram_id} с реферальным кодом {referral_code}")
 
+    # Publish SSE for users list updates
+    try:
+        if sse_broker is not None:
+            await sse_broker.publish("users.update")
+    except Exception:
+        pass
+
     return user
 
 
@@ -188,6 +199,11 @@ async def add_user_balance(
         
         await db.commit()
         await db.refresh(user)
+        try:
+            if sse_broker is not None:
+                await sse_broker.publish("users.update")
+        except Exception:
+            pass
         
         
         logger.info(f"💰 Баланс пользователя {user.telegram_id} изменен: {old_balance} → {user.balance_kopeks} (изменение: +{amount_kopeks})")
@@ -243,6 +259,11 @@ async def subtract_user_balance(
         
         await db.commit()
         await db.refresh(user)
+        try:
+            if sse_broker is not None:
+                await sse_broker.publish("users.update")
+        except Exception:
+            pass
 
         if create_transaction:
             from app.database.crud.transaction import (

@@ -1,29 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
-import { apiClient } from "@/lib/api-client";
+import { createBroadcast, fetchBroadcasts, stopBroadcast, uploadBroadcastMedia, type BroadcastListResponse, type BroadcastItem } from "@/features/broadcasts/api";
 
-interface BroadcastItem {
-  id: number;
-  target_type: string;
-  message_text: string;
-  has_media: boolean;
-  media_type?: string | null;
-  media_file_id?: string | null;
-  media_caption?: string | null;
-  total_count: number;
-  sent_count: number;
-  failed_count: number;
-  status: string;
-  admin_name?: string | null;
-  created_at: string;
-  completed_at?: string | null;
-}
-
-interface BroadcastListResponse {
-  items: BroadcastItem[];
-  total: number;
-  limit: number;
-  offset: number;
-}
+// Types now imported from features/broadcasts/api
 
 const TARGETS = [
   { value: "all", label: "Все пользователи" },
@@ -65,6 +43,8 @@ export default function BroadcastsPage() {
   const [mediaType, setMediaType] = useState<"photo" | "video" | "document" | "">("");
   const [mediaFileId, setMediaFileId] = useState("");
   const [mediaCaption, setMediaCaption] = useState("");
+  const [mediaPreview, setMediaPreview] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const canSubmit = useMemo(() => message.trim().length > 0 && !loading, [message, loading]);
@@ -72,7 +52,7 @@ export default function BroadcastsPage() {
   async function loadList() {
     try {
       setListLoading(true);
-      const { data } = await apiClient.get<BroadcastListResponse>("/broadcasts", { params: { limit: 50, offset: 0 } });
+      const data = await fetchBroadcasts({ limit: 50, offset: 0 });
       setItems(data.items);
     } catch (e: any) {
       // ignore
@@ -98,11 +78,12 @@ export default function BroadcastsPage() {
       if (mediaType && mediaFileId) {
         payload.media = { type: mediaType, file_id: mediaFileId, caption: mediaCaption || message };
       }
-      await apiClient.post("/broadcasts", payload);
+      await createBroadcast(payload);
       setMessage("");
       setMediaType("");
       setMediaFileId("");
       setMediaCaption("");
+      setMediaPreview(null);
       await loadList();
     } catch (err: any) {
       const detail = err?.response?.data?.detail;
@@ -117,7 +98,7 @@ export default function BroadcastsPage() {
 
   async function handleStop(id: number) {
     try {
-      await apiClient.post(`/broadcasts/${id}/stop`);
+      await stopBroadcast(id);
       await loadList();
     } catch {}
   }
@@ -185,8 +166,40 @@ export default function BroadcastsPage() {
                 </select>
               </label>
               <label className="col-span-2 block">
-                <span className="mb-1 block text-xs uppercase tracking-[0.28em] text-textMuted">File ID</span>
-                <input className="w-full rounded-2xl border border-outline/40 bg-background/80 px-3 py-2 text-sm" placeholder="AAQABAA..." value={mediaFileId} onChange={(e) => setMediaFileId(e.target.value)} />
+                <span className="mb-1 block text-xs uppercase tracking-[0.28em] text-textMuted">Медиа</span>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="file"
+                    accept={mediaType === "photo" ? "image/*" : mediaType === "video" ? "video/*" : mediaType === "document" ? undefined : undefined}
+                    className="flex-1 rounded-2xl border border-outline/40 bg-background/80 px-3 py-2 text-sm file:mr-3 file:rounded-xl file:border-0 file:bg-surface/60 file:px-3 file:py-1 file:text-xs"
+                    onChange={async (e) => {
+                      const file = e.target.files && e.target.files[0];
+                      if (!file || !mediaType) return;
+                      try {
+                        setUploading(true);
+                        setError(null);
+                        const res = await uploadBroadcastMedia(file, mediaType as any, mediaCaption || message);
+                        setMediaFileId(res.file_id);
+                        setMediaPreview(res.preview_url || null);
+                      } catch (err: any) {
+                        const detail = err?.response?.data?.detail;
+                        let msg = "Не удалось загрузить медиа";
+                        if (typeof detail === "string") msg = detail;
+                        setError(msg);
+                      } finally {
+                        setUploading(false);
+                      }
+                    }}
+                    disabled={!mediaType || uploading}
+                  />
+                  <button
+                    type="button"
+                    className="button-ghost"
+                    onClick={() => { setMediaFileId(""); setMediaPreview(null); }}
+                    disabled={!mediaFileId}
+                  >Очистить</button>
+                </div>
+                {mediaFileId ? <p className="mt-1 truncate text-xs text-textMuted">file_id: <span className="text-[11px] text-slate-300">{mediaFileId}</span></p> : null}
               </label>
               <label className="col-span-3 block">
                 <span className="mb-1 block text-xs uppercase tracking-[0.28em] text-textMuted">Подпись к медиа</span>
@@ -194,10 +207,26 @@ export default function BroadcastsPage() {
               </label>
             </div>
 
+            {mediaPreview ? (
+              <div className="rounded-2xl border border-outline/40 bg-surface/60 p-3">
+                <p className="text-xs text-textMuted">Предпросмотр</p>
+                <div className="mt-2">
+                  {mediaType === "photo" ? (
+                    <img src={mediaPreview} alt="preview" className="max-h-64 w-auto rounded-xl border border-outline/40 object-contain" />
+                  ) : (
+                    <a href={mediaPreview} target="_blank" rel="noopener noreferrer" className="button-ghost">Открыть медиа</a>
+                  )}
+                </div>
+              </div>
+            ) : null}
+
             {error ? <p className="text-xs text-danger">{error}</p> : null}
-            <button className="button-primary" disabled={!canSubmit} onClick={handleCreate}>
-              {loading ? "Отправка..." : "Запустить рассылку"}
-            </button>
+            <div className="flex items-center gap-3">
+              <button className="button-primary" disabled={!canSubmit || uploading} onClick={handleCreate}>
+                {loading ? "Отправка..." : "Запустить рассылку"}
+              </button>
+              {uploading ? <span className="text-xs text-textMuted">Загрузка медиа…</span> : null}
+            </div>
           </div>
 
           <div className="space-y-3">

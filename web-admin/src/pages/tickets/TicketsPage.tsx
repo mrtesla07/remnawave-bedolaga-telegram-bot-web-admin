@@ -4,6 +4,8 @@ import { useTicketsList, useTicketDetails, useUpdateTicketPriority, useUpdateTic
 import clsx from "clsx";
 import { useUserDetails } from "@/features/users/queries";
 import type { TicketDto, TicketPriority, TicketStatus } from "@/features/tickets/api";
+import { authStore } from "@/store/auth-store";
+import { defaultApiBaseUrl } from "@/lib/config";
 
 const PAGE_SIZE = 25;
 
@@ -165,6 +167,18 @@ function TicketDrawer({ id, onClose }: { id: number | null; onClose: () => void 
     window.setTimeout(onClose, 200);
   };
 
+  // Image viewer (lightbox) state
+  const [viewerSrc, setViewerSrc] = useState<string | null>(null);
+  const [viewerCaption, setViewerCaption] = useState<string | null>(null);
+  useEffect(() => {
+    if (!viewerSrc) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setViewerSrc(null);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [viewerSrc]);
+
   if (!id) return null;
   if (!data) return null;
 
@@ -242,11 +256,24 @@ function TicketDrawer({ id, onClose }: { id: number | null; onClose: () => void 
                 <p className="text-xs text-textMuted">{new Date(m.created_at).toLocaleString("ru-RU")} · {m.is_from_admin ? "Админ" : `Пользователь #${m.user_id}`}</p>
                 {m.has_media && m.media_type === "photo" && m.media_type ? (
                   <div className="mt-2">
-                    <img
-                      src={`/tickets/${ticket.id}/messages/${m.id}/media`}
-                      alt={m.media_caption || "photo"}
-                      className="max-h-64 w-auto rounded-xl border border-outline/40 object-contain"
-                    />
+                    {(() => {
+                      const { token, apiBaseUrl } = authStore.getState();
+                      const base = String(apiBaseUrl || defaultApiBaseUrl || "").replace(/\/+$/, "");
+                      const href = (m.media_url && m.media_url) || `${base}/tickets/${ticket.id}/messages/${m.id}/media${token ? `?api_key=${encodeURIComponent(token)}` : ""}`;
+                      return (
+                        <button
+                          type="button"
+                          onClick={() => { setViewerSrc(href); setViewerCaption(m.media_caption || "photo"); }}
+                          className="group"
+                        >
+                          <img
+                            src={href}
+                            alt={m.media_caption || "photo"}
+                            className="max-h-64 w-auto cursor-zoom-in rounded-xl border border-outline/40 object-contain transition-opacity group-hover:opacity-95"
+                          />
+                        </button>
+                      );
+                    })()}
                     {m.media_caption ? <p className="mt-1 text-xs text-textMuted">{m.media_caption}</p> : null}
                   </div>
                 ) : null}
@@ -271,6 +298,24 @@ function TicketDrawer({ id, onClose }: { id: number | null; onClose: () => void 
         </section>
         <button className="absolute right-6 top-6 rounded-full bg-surfaceMuted/60 p-2 text-textMuted hover:text-slate-100" onClick={requestClose} aria-label="Закрыть" />
       </div>
+      {viewerSrc ? (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/80" onClick={() => setViewerSrc(null)} />
+          <div className="relative max-h-[90vh] max-w-[95vw] p-2">
+            <img
+              src={viewerSrc}
+              alt={viewerCaption || "photo"}
+              className="max-h-[90vh] max-w-[95vw] rounded-xl border border-outline/40 object-contain shadow-2xl"
+            />
+            {viewerCaption ? <div className="mt-2 text-center text-xs text-textMuted">{viewerCaption}</div> : null}
+            <button
+              className="absolute right-2 top-2 rounded-full bg-surfaceMuted/60 p-2 text-textMuted hover:text-slate-100"
+              onClick={() => setViewerSrc(null)}
+              aria-label="Закрыть просмотр"
+            />
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

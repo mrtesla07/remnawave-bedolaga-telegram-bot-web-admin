@@ -12,6 +12,7 @@ export function useTransactionsList(initial: TransactionsQuery = {}) {
     queryKey: [...TRANSACTIONS_QUERY_KEY, params],
     queryFn: () => fetchTransactions(params),
     keepPreviousData: true,
+    staleTime: 15_000,
   });
 
   return {

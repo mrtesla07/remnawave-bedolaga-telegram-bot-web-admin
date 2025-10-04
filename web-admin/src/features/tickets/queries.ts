@@ -51,6 +51,8 @@ export function useSetReplyBlock() {
     mutationFn: ({ id, permanent, until }: { id: number; permanent: boolean; until?: string | null }) => setReplyBlock(id, permanent, until),
     onSuccess: (data) => {
       qc.setQueryData([...TICKETS_KEY, "detail", data.id], data);
+      qc.invalidateQueries({ queryKey: [...TICKETS_KEY, "list"] });
+      qc.invalidateQueries({ queryKey: [...TICKETS_KEY] });
     },
   });
 }
@@ -61,6 +63,8 @@ export function useClearReplyBlock() {
     mutationFn: (id: number) => clearReplyBlock(id),
     onSuccess: (_data, id) => {
       qc.invalidateQueries({ queryKey: [...TICKETS_KEY, "detail", id] });
+      qc.invalidateQueries({ queryKey: [...TICKETS_KEY, "list"] });
+      qc.invalidateQueries({ queryKey: [...TICKETS_KEY] });
     },
   });
 }
@@ -71,6 +75,9 @@ export function useReplyToTicket() {
     mutationFn: ({ id, message }: { id: number; message: { message_text: string; media_type?: string | null; media_file_id?: string | null; media_caption?: string | null } }) => replyToTicket(id, message),
     onSuccess: (data) => {
       qc.setQueryData([...TICKETS_KEY, "detail", data.id], data);
+      // Обновляем списки, так как сортировка и updated_at меняются
+      qc.invalidateQueries({ queryKey: [...TICKETS_KEY, "list"] });
+      qc.invalidateQueries({ queryKey: [...TICKETS_KEY] });
     },
   });
 }
