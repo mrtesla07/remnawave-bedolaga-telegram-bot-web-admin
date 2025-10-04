@@ -17,6 +17,7 @@ from .routes import (
     promo_groups,
     remnawave,
     stats,
+    system_metrics,
     subscriptions,
     tickets,
     tokens,
@@ -73,6 +74,10 @@ OPENAPI_TAGS = [
         "name": "miniapp",
         "description": "Endpoint для Telegram Mini App с информацией о подписке пользователя.",
     },
+    {
+        "name": "monitoring",
+        "description": "Endpoints for collecting infrastructure metrics from remote agents.",
+    },
 ]
 
 
@@ -108,6 +113,7 @@ def create_web_api_app() -> FastAPI:
     from .routes import auth as auth_routes
     app.include_router(auth_routes.router)
     app.include_router(stats.router, prefix="/stats", tags=["stats"])
+    app.include_router(system_metrics.router)
     app.include_router(config.router, prefix="/settings", tags=["settings"])
     app.include_router(users.router, prefix="/users", tags=["users"])
     app.include_router(subscriptions.router, prefix="/subscriptions", tags=["subscriptions"])
