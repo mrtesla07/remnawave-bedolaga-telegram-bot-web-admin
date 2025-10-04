@@ -73,14 +73,30 @@ export function Topbar({ onOpenTokenDialog }: TopbarProps) {
   }, []);
 
   useEffect(() => {
+    let cancelled = false;
     (async () => {
       try {
         const { data } = await apiClient.get("/auth/me");
+        if (cancelled) return;
         setUsername((data as any)?.username || null);
         setName((data as any)?.name || null);
-      } catch {}
+      } catch (err: any) {
+        if (cancelled) return;
+        const status = err?.response?.status;
+        if (status === 401 || status === 403 || status === 404) {
+          const store = useAuthStore.getState();
+          store.setJwtToken(null);
+          store.setUsername(null);
+          store.setName(null);
+          store.setToken(null);
+          navigate('/auth', { replace: true });
+        }
+      }
     })();
-  }, [setName, setUsername]);
+    return () => {
+      cancelled = true;
+    };
+  }, [setName, setUsername, navigate]);
 
   const unreadNotifications = useMemo(() => notifItems.filter((item) => !item.read), [notifItems]);
   const unreadCount = unreadNotifications.length;

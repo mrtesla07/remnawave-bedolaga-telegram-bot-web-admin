@@ -10,6 +10,7 @@ export function AuthPage() {
   const jwtToken = useAuthStore((s) => s.jwtToken);
   const setJwtToken = useAuthStore((s) => s.setJwtToken);
   const setUsername = useAuthStore((s) => s.setUsername);
+  const setToken = useAuthStore((s) => s.setToken);
 
   const [mode, setMode] = useState<"login" | "register">("register");
   const [login, setLogin] = useState("");
@@ -54,6 +55,7 @@ export function AuthPage() {
       const { data } = await apiClient.post<{ access_token: string }>("/auth/login", { username: login, password });
       setJwtToken(data.access_token);
       setUsername(login.trim().toLowerCase());
+      setToken(null);
       navigate("/", { replace: true });
     } catch (err: any) {
       if (!err?.response) {

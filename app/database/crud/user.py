@@ -121,6 +121,7 @@ async def _get_or_create_default_promo_group(db: AsyncSession) -> PromoGroup:
     return default_group
 
 
+
 async def create_user(
     db: AsyncSession,
     telegram_id: int,
@@ -131,42 +132,47 @@ async def create_user(
     referred_by_id: int = None,
     referral_code: str = None
 ) -> User:
-    
+
     if not referral_code:
         referral_code = await create_unique_referral_code(db)
-    
+
     attempts = 3
 
     for attempt in range(1, attempts + 1):
         default_group = await _get_or_create_default_promo_group(db)
-        promo_group_id = default_group.id
+        promo_group_id = default_group.id if default_group else None
 
-    safe_first = sanitize_telegram_name(first_name)
-    safe_last = sanitize_telegram_name(last_name)
-    user = User(
-        telegram_id=telegram_id,
-        username=username,
-        first_name=safe_first,
-        last_name=safe_last,
-        language=language,
-        referred_by_id=referred_by_id,
-        referral_code=referral_code,
-        balance_kopeks=0,
-        has_had_paid_subscription=False,
-        has_made_first_topup=False,
-        promo_group_id=promo_group_id,
-    )
-    
-    db.add(user)
-    await db.commit()
-    await db.refresh(user)
-    
-    if default_group:
-        user.promo_group = default_group
+        try:
+            safe_first = sanitize_telegram_name(first_name)
+            safe_last = sanitize_telegram_name(last_name)
+            user = User(
+                telegram_id=telegram_id,
+                username=username,
+                first_name=safe_first,
+                last_name=safe_last,
+                language=language,
+                referred_by_id=referred_by_id,
+                referral_code=referral_code,
+                balance_kopeks=0,
+                has_had_paid_subscription=False,
+                has_made_first_topup=False,
+                promo_group_id=promo_group_id,
+            )
 
-    logger.info(f"✅ Создан пользователь {telegram_id} с реферальным кодом {referral_code}")
+            db.add(user)
+            await db.commit()
+            await db.refresh(user)
 
-    return user
+            if default_group:
+                user.promo_group = default_group
+
+            logger.info(
+                "Created user %s with referral code %s",
+                telegram_id,
+                referral_code,
+            )
+
+            return user
 
         except IntegrityError as exc:
             await db.rollback()
@@ -177,8 +183,7 @@ async def create_user(
                 and attempt < attempts
             ):
                 logger.warning(
-                    "⚠️ Обнаружено несоответствие последовательности users_id_seq при создании пользователя %s. "
-                    "Выполняем повторную синхронизацию (попытка %s/%s)",
+                    "users_id_seq desync while creating user %s. Attempt %s/%s",
                     telegram_id,
                     attempt,
                     attempts,
@@ -188,7 +193,7 @@ async def create_user(
 
             raise
 
-    raise RuntimeError("Не удалось создать пользователя после синхронизации последовательности")
+    raise RuntimeError("Failed to create user after syncing users_id_seq")
 
 
 async def update_user(

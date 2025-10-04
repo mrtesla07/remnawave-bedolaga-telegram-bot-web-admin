@@ -33,7 +33,7 @@ export const useAuthStore = create<AuthState>()(
       setHydrated: (value) => set({ hydrated: value }),
       setUsername: (username) => set({ username }),
       setName: (name) => set({ name }),
-      clear: () => set({ token: null, jwtToken: null, username: null, name: null }),
+      clear: () => set({ jwtToken: null, username: null, name: null }),
     }),
     {
       name: "bedolaga-web-admin-auth",

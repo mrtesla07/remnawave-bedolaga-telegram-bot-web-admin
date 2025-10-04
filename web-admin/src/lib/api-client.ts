@@ -14,6 +14,20 @@ export const apiClient = axios.create({
   timeout: defaultRequestTimeout,
 });
 
+function forceLogout() {
+  const store = authStore.getState();
+  store.setJwtToken(null);
+  store.setUsername(null);
+  store.setName(null);
+  store.setToken(null);
+  try {
+    if (typeof window !== 'undefined') {
+      const current = String(window.location?.pathname || '');
+      if (current !== '/auth') window.location.assign('/auth');
+    }
+  } catch {}
+}
+
 apiClient.interceptors.request.use((config) => {
   const { token, jwtToken, apiBaseUrl } = authStore.getState();
   config.baseURL = normalizeBaseUrl(apiBaseUrl || defaultApiBaseUrl);
@@ -41,6 +55,19 @@ apiClient.interceptors.request.use((config) => {
 apiClient.interceptors.response.use(
   (response) => response,
   (error) => {
+    if (error.response?.status === 404 || error.response?.status === 403) {
+      const cfg = error.config || {};
+      const rawUrl = String(cfg.url || '');
+      let path = rawUrl;
+      try {
+        const base = normalizeBaseUrl(authStore.getState().apiBaseUrl || defaultApiBaseUrl) || window.location.origin;
+        path = new URL(rawUrl, base).pathname;
+      } catch {}
+      if (path === '/auth/me') {
+        forceLogout();
+      }
+    }
+
     if (error.response?.status === 401) {
       const cfg = error.config || {};
       const rawUrl = String(cfg.url || "");
@@ -54,14 +81,8 @@ apiClient.interceptors.response.use(
       }
 
       if (!isAuthPath) {
-        // Full logout on unauthorized to avoid zombie sessions
-        authStore.setState({ token: null, jwtToken: null, username: null, name: null });
-        try {
-          if (typeof window !== "undefined") {
-            const current = String(window.location?.pathname || "");
-            if (current !== "/auth") window.location.assign("/auth");
-          }
-        } catch {}
+        // Treat as unauthorized
+        forceLogout();
       }
     }
     if (error.response?.status === 403) {

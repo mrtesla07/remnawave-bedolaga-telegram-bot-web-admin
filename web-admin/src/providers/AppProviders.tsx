@@ -204,7 +204,7 @@ function SessionManager() {
     }
 
     function doLogout() {
-      authStore.setState({ token: null, jwtToken: null, username: null, name: null });
+      authStore.setState({ jwtToken: null, username: null, name: null });
       try {
         if (typeof window !== 'undefined') {
           const current = String(window.location?.pathname || '');

@@ -13,6 +13,17 @@ interface SalesChartCardProps {
   className?: string;
 }
 
+function safeFormatDate(input: unknown, fmt: string, fallback = "") {
+  if (input === undefined || input === null) return fallback;
+  try {
+    const date = input instanceof Date ? input : new Date(input as any);
+    if (Number.isNaN(date.getTime())) return fallback;
+    return format(date, fmt, { locale: ru });
+  } catch {
+    return fallback;
+  }
+}
+
 export function SalesChartCard({
   title,
   subtitle,
@@ -57,7 +68,7 @@ export function SalesChartCard({
               axisLine={false}
               tickLine={false}
               stroke="#5b6280"
-              tickFormatter={(value) => format(new Date(value), "d MMM", { locale: ru })}
+              tickFormatter={(value) => safeFormatDate(value, "d MMM")}
             />
             <Tooltip
               cursor={{ stroke: "rgba(78, 70, 229, 0.3)", strokeWidth: 2 }}
@@ -67,7 +78,7 @@ export function SalesChartCard({
                 return (
                   <div className="rounded-xl border border-outline/60 bg-background/95 px-4 py-3 text-sm shadow-card">
                     <p className="text-xs uppercase tracking-widest text-textMuted">
-                      {format(new Date(label), "d MMMM yyyy", { locale: ru })}
+                      {safeFormatDate(label, "d MMMM yyyy", "—")}
                     </p>
                     <p className="mt-2 text-lg font-semibold text-white">
                       {new Intl.NumberFormat("ru-RU").format(Number(point.value))} ₽

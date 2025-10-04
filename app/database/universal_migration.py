@@ -15,13 +15,19 @@ async def get_database_type():
     return engine.dialect.name
 
 
+
+
+
 async def sync_postgres_sequences() -> bool:
-    """Ensure PostgreSQL sequences match the current max values after restores."""
+    """Синхронизирует последовательности PostgreSQL с максимальными значениями таблиц."""
 
     db_type = await get_database_type()
 
     if db_type != "postgresql":
-        logger.debug("Пропускаем синхронизацию последовательностей: тип БД %s", db_type)
+        logger.debug(
+            "Пропускаем синхронизацию последовательностей PostgreSQL: используется %s",
+            db_type,
+        )
         return True
 
     try:
@@ -47,8 +53,34 @@ async def sync_postgres_sequences() -> bool:
             sequences = result.fetchall()
 
             if not sequences:
-                logger.info("ℹ️ Не найдено последовательностей PostgreSQL для синхронизации")
+                logger.info("Последовательности PostgreSQL не требуют синхронизации")
                 return True
+
+            columns_result = await conn.execute(
+                text(
+                    """
+                    SELECT column_name
+                    FROM information_schema.columns
+                    WHERE table_schema = 'pg_catalog'
+                      AND table_name = 'pg_sequences'
+                    """
+                )
+            )
+            pg_sequences_columns = {row[0] for row in columns_result}
+            has_is_called_column = "is_called" in pg_sequences_columns
+            has_last_value_column = "last_value" in pg_sequences_columns
+
+            sequence_state_query_text = None
+            if has_last_value_column:
+                selected_columns = ["last_value"]
+                if has_is_called_column:
+                    selected_columns.append("is_called")
+                sequence_state_query_text = text(
+                    "SELECT {cols} FROM pg_sequences "
+                    "WHERE schemaname = :schema AND sequencename = :sequence".format(
+                        cols=", ".join(selected_columns)
+                    )
+                )
 
             for table_schema, table_name, column_name, sequence_path in sequences:
                 if not sequence_path:
@@ -73,34 +105,44 @@ async def sync_postgres_sequences() -> bool:
                 sequence_identifier = (
                     f'"{seq_schema}"."{seq_name}"' if seq_schema else f'"{seq_name}"'
                 )
-                current_result = await conn.execute(
-                    text(
-                        """
-                        SELECT last_value, is_called
-                        FROM pg_sequences
-                        WHERE schemaname = :schema AND sequencename = :sequence
-                        """
-                    ),
-                    {"schema": seq_schema, "sequence": seq_name},
-                )
-                current_row = current_result.fetchone()
 
-                if current_row:
-                    current_last, is_called = current_row
-                    current_next = current_last + 1 if is_called else current_last
-                    if current_next > max_value:
-                        continue
+                current_last = None
+                current_next = None
+
+                if sequence_state_query_text is not None:
+                    current_result = await conn.execute(
+                        sequence_state_query_text,
+                        {"schema": seq_schema, "sequence": seq_name},
+                    )
+                    current_row = current_result.fetchone()
+
+                    if current_row:
+                        current_last = current_row[0]
+                        if has_is_called_column and len(current_row) > 1:
+                            is_called = bool(current_row[1])
+                            current_next = current_last + 1 if is_called else current_last
+                        else:
+                            current_next = current_last
+
+                if current_last is None:
+                    fallback_result = await conn.execute(
+                        text(f"SELECT last_value FROM {sequence_identifier}")
+                    )
+                    fallback_row = fallback_result.fetchone()
+
+                    if fallback_row:
+                        current_last = fallback_row[0]
+                        current_next = current_last
+
+                if current_next is not None and current_next > max_value:
+                    continue
 
                 await conn.execute(
-                    text(
-                        """
-                        SELECT setval(:sequence_name, :new_value, TRUE)
-                        """
-                    ),
+                    text("SELECT setval(:sequence_name, :new_value, TRUE)"),
                     {"sequence_name": sequence_path, "new_value": max_value},
                 )
                 logger.info(
-                    "🔄 Последовательность %s синхронизирована: MAX=%s, следующий ID=%s",
+                    "Последовательность %s синхронизирована: MAX=%s, следующий идентификатор=%s",
                     sequence_path,
                     max_value,
                     max_value + 1,
@@ -109,7 +151,10 @@ async def sync_postgres_sequences() -> bool:
         return True
 
     except Exception as error:
-        logger.error("❌ Ошибка синхронизации последовательностей PostgreSQL: %s", error)
+        logger.error(
+            "Ошибка синхронизации последовательностей PostgreSQL: %s",
+            error,
+        )
         return False
 
 async def check_table_exists(table_name: str) -> bool:
