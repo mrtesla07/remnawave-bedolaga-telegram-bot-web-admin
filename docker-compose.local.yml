@@ -108,6 +108,7 @@ volumes:
 
 networks:
   bot_network:
+    name: bot_network
     driver: bridge
     ipam:
       config:

@@ -35,7 +35,7 @@ services:
       retries: 3
 
   bot:
-    image: fr1ngg/remnawave-bedolaga-telegram-bot:latest
+    build: .
     container_name: remnawave_bot
     restart: unless-stopped
     depends_on:
@@ -72,7 +72,6 @@ services:
       # Логотип для сообщений
       - ./vpn_logo.png:/app/vpn_logo.png:ro
     ports:
-      - "${WEB_API_PORT:-8080}:8080"
       - "${TRIBUTE_WEBHOOK_PORT:-8081}:8081"
       - "${YOOKASSA_WEBHOOK_PORT:-8082}:8082"
     networks:
@@ -84,14 +83,61 @@ services:
       retries: 3
       start_period: 30s
 
+  web-admin-builder:
+    image: node:20-alpine
+    container_name: remnawave_web_admin_builder
+    working_dir: /src
+    restart: "no"
+    environment:
+      VITE_API_BASE_URL: "https://${ADMIN_DOMAIN}/api"
+      VITE_API_TIMEOUT: "${VITE_API_TIMEOUT:-15000}"
+    volumes:
+      - ./web-admin:/src
+      - web_admin_node_modules:/src/node_modules
+      - web_admin_dist:/src/dist
+    command: sh -c "npm ci && npm run build"
+    networks:
+      - bot_network
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: remnawave_caddy
+    restart: unless-stopped
+    depends_on:
+      bot:
+        condition: service_started
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      # For ACME notifications
+      CADDY_EMAIL: "${CADDY_EMAIL:-}"
+      ADMIN_DOMAIN: "${ADMIN_DOMAIN}"
+    volumes:
+      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+      - web_admin_dist:/srv/web-admin:ro
+    networks:
+      - bot_network
+
 volumes:
   postgres_data:
     driver: local
   redis_data:
     driver: local
+  caddy_data:
+    driver: local
+  caddy_config:
+    driver: local
+  web_admin_node_modules:
+    driver: local
+  web_admin_dist:
+    driver: local
 
 networks:
   bot_network:
+    name: bot_network
     driver: bridge
     ipam:
       config:
