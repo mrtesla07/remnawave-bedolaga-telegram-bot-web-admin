@@ -1,18 +1,62 @@
-﻿import { useState } from "react";
+﻿import { useState, useEffect } from "react";
 import { Outlet } from "react-router-dom";
 import { Sidebar } from "@/components/navigation/Sidebar";
 import { Topbar } from "@/components/navigation/Topbar";
 import { TokenDialog } from "@/components/auth/TokenDialog";
 import { useAuthStore } from "@/store/auth-store";
 import { LoggedInBackground } from "@/components/shared/LoggedInBackground";
+import { useConnectionStore } from "@/store/connection-store";
+import { ApiOfflineScreen } from "@/components/status/ApiOfflineScreen";
+import { ApiTokenValidationError, validateApiToken } from "@/lib/api-token-validator";
 
 export function MainLayout() {
   const token = useAuthStore((state) => state.token);
   const jwtToken = useAuthStore((state) => state.jwtToken);
   const hydrated = useAuthStore((state) => state.hydrated);
+  const apiBaseUrl = useAuthStore((state) => state.apiBaseUrl);
+  const isOnline = useConnectionStore((state) => state.isOnline);
   const [manualOpen, setManualOpen] = useState(false);
   // Показываем диалог только после гидратации стора, чтобы избежать открытия и сразу закрытия
-  const requireToken = hydrated && Boolean(jwtToken) && !token;
+  const requireToken = Boolean(jwtToken) && !token;
+
+  // Validate persisted API token after hydration; if invalid, clear it to force TokenDialog
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      if (!hydrated) return;
+      if (!jwtToken) return;
+      if (!token) return;
+      try {
+        await validateApiToken({ baseUrl: apiBaseUrl, token });
+        if (!cancelled) {
+          try { useConnectionStore.getState().setOnline(true); } catch {}
+        }
+      } catch (error) {
+        if (cancelled) return;
+        if (error instanceof ApiTokenValidationError) {
+          if (error.reason === "network" || error.reason === "timeout") {
+            try { useConnectionStore.getState().setOnline(false); } catch {}
+          }
+        }
+        try { useAuthStore.getState().setToken(null); } catch {}
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [hydrated, jwtToken, token, apiBaseUrl]);
+
+
+  if (requireToken) {
+    return (
+      <div className="relative flex min-h-screen bg-background text-slate-100">
+        <LoggedInBackground />
+        <TokenDialog open={true} onClose={() => {}} />
+      </div>
+    );
+  }
+
+  if (!isOnline) {
+    return <ApiOfflineScreen />;
+  }
 
   return (
     <div className="relative flex min-h-screen bg-background text-slate-100">

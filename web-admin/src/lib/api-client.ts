@@ -2,7 +2,7 @@
 import { defaultApiBaseUrl, defaultRequestTimeout } from "@/lib/config";
 import { authStore } from "@/store/auth-store";
 
-function normalizeBaseUrl(url: string | undefined): string {
+export function normalizeBaseUrl(url: string | undefined): string {
   const raw = (url || defaultApiBaseUrl || "").trim().replace(/\/+$/, "");
   if (!raw) return "";
   if (!/^https?:\/\//i.test(raw)) return `http://${raw}`;

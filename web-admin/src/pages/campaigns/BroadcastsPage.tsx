@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createBroadcast, fetchBroadcasts, stopBroadcast, uploadBroadcastMedia, type BroadcastListResponse, type BroadcastItem } from "@/features/broadcasts/api";
 
 // Types now imported from features/broadcasts/api
@@ -33,6 +33,8 @@ const BUTTONS = [
   { value: "home", label: "🏠 На главную" },
 ];
 
+const BROADCASTS_POLL_INTERVAL_MS = 5000;
+
 export default function BroadcastsPage() {
   const [loading, setLoading] = useState(false);
   const [listLoading, setListLoading] = useState(false);
@@ -47,27 +49,82 @@ export default function BroadcastsPage() {
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const pollRef = useRef<number | null>(null);
+
+  const clearMediaState = (options?: { resetType?: boolean; resetCaption?: boolean }) => {
+    const resetType = options?.resetType ?? false;
+    const resetCaption = options?.resetCaption ?? true;
+    if (resetType) {
+      setMediaType("");
+    }
+    setMediaFileId("");
+    if (resetCaption) {
+      setMediaCaption("");
+    }
+    setMediaPreview(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  };
+
+  const handleMediaTypeChange = (nextType: "photo" | "video" | "document" | "") => {
+    if (nextType === mediaType) return;
+    setMediaType(nextType);
+    clearMediaState({ resetType: false, resetCaption: false });
+    setError(null);
+  };
+
   const canSubmit = useMemo(() => {
     const hasText = message.trim().length > 0;
     const hasCaption = (mediaCaption || "").trim().length > 0 && !!mediaType && !!mediaFileId;
     return (hasText || hasCaption) && !loading;
   }, [message, loading, mediaCaption, mediaType, mediaFileId]);
 
-  async function loadList() {
-    try {
+  const loadList = useCallback(async (options?: { silent?: boolean }) => {
+    const silent = options?.silent ?? false;
+    if (!silent) {
       setListLoading(true);
+    }
+    try {
       const data = await fetchBroadcasts({ limit: 50, offset: 0 });
       setItems(data.items);
     } catch (e: any) {
       // ignore
     } finally {
-      setListLoading(false);
+      if (!silent) {
+        setListLoading(false);
+      }
     }
-  }
+  }, []);
 
   useEffect(() => {
     loadList();
-  }, []);
+  }, [loadList]);
+
+  useEffect(() => {
+    const hasActive = items.some((item) => item.status === "queued" || item.status === "in_progress");
+    if (!hasActive) {
+      if (pollRef.current !== null) {
+        window.clearInterval(pollRef.current);
+        pollRef.current = null;
+      }
+      return;
+    }
+
+    if (pollRef.current === null) {
+      pollRef.current = window.setInterval(() => {
+        loadList({ silent: true }).catch(() => undefined);
+      }, BROADCASTS_POLL_INTERVAL_MS);
+    }
+
+    return () => {
+      if (pollRef.current !== null) {
+        window.clearInterval(pollRef.current);
+        pollRef.current = null;
+      }
+    };
+  }, [items, loadList]);
 
   async function handleCreate() {
     if (!canSubmit) return;
@@ -85,10 +142,7 @@ export default function BroadcastsPage() {
       }
       await createBroadcast(payload);
       setMessage("");
-      setMediaType("");
-      setMediaFileId("");
-      setMediaCaption("");
-      setMediaPreview(null);
+      clearMediaState({ resetType: true });
       await loadList();
     } catch (err: any) {
       const detail = err?.response?.data?.detail;
@@ -96,6 +150,7 @@ export default function BroadcastsPage() {
       if (typeof detail === "string") msg = detail;
       else if (Array.isArray(detail)) msg = detail.map((d: any) => d?.msg || "Ошибка ввода").join("; ");
       setError(msg);
+      clearMediaState({ resetType: false, resetCaption: false });
     } finally {
       setLoading(false);
     }
@@ -163,7 +218,7 @@ export default function BroadcastsPage() {
             <div className="grid grid-cols-3 gap-3">
               <label className="col-span-1 block">
                 <span className="mb-1 block text-xs uppercase tracking-[0.28em] text-textMuted">Тип медиа</span>
-                <select className="w-full rounded-2xl border border-outline/40 bg-background/80 px-3 py-2 text-sm" value={mediaType} onChange={(e) => setMediaType(e.target.value as any)}>
+                <select className="w-full rounded-2xl border border-outline/40 bg-background/80 px-3 py-2 text-sm" value={mediaType} onChange={(e) => handleMediaTypeChange(e.target.value as any)}>
                   <option value="">Без медиа</option>
                   <option value="photo">Фото</option>
                   <option value="video">Видео</option>
@@ -174,6 +229,7 @@ export default function BroadcastsPage() {
                 <span className="mb-1 block text-xs uppercase tracking-[0.28em] text-textMuted">Медиа</span>
                 <div className="flex items-center gap-2">
                   <input
+                    ref={fileInputRef}
                     type="file"
                     accept={mediaType === "photo" ? "image/*" : mediaType === "video" ? "video/*" : mediaType === "document" ? undefined : undefined}
                     className="flex-1 rounded-2xl border border-outline/40 bg-background/80 px-3 py-2 text-sm file:mr-3 file:rounded-xl file:border-0 file:bg-surface/60 file:px-3 file:py-1 file:text-xs"
@@ -191,6 +247,7 @@ export default function BroadcastsPage() {
                         let msg = "Не удалось загрузить медиа";
                         if (typeof detail === "string") msg = detail;
                         setError(msg);
+                        clearMediaState({ resetType: false, resetCaption: false });
                       } finally {
                         setUploading(false);
                       }
@@ -200,7 +257,7 @@ export default function BroadcastsPage() {
                   <button
                     type="button"
                     className="button-ghost"
-                    onClick={() => { setMediaFileId(""); setMediaPreview(null); }}
+                    onClick={() => { clearMediaState({ resetType: false }); setError(null); }}
                     disabled={!mediaFileId}
                   >Очистить</button>
                 </div>
@@ -237,7 +294,7 @@ export default function BroadcastsPage() {
           <div className="space-y-3">
             <div className="flex items-center justify-between">
               <h2 className="text-sm font-semibold">История рассылок</h2>
-              <button className="button-ghost" onClick={loadList} disabled={listLoading}>{listLoading ? "Обновление..." : "Обновить"}</button>
+              <button className="button-ghost" onClick={() => { void loadList(); }} disabled={listLoading}>{listLoading ? "Обновление..." : "Обновить"}</button>
             </div>
             <div className="rounded-2xl border border-outline/40">
               <table className="w-full text-sm">
@@ -287,3 +344,4 @@ export default function BroadcastsPage() {
     </div>
   );
 }
+

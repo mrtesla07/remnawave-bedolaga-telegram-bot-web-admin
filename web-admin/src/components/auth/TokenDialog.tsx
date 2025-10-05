@@ -1,6 +1,7 @@
 ﻿import { FormEvent, useEffect, useState } from "react";
 import { KeyRound, Link2 } from "lucide-react";
 import { defaultApiBaseUrl } from "@/lib/config";
+import { ApiTokenValidationError, validateApiToken } from "@/lib/api-token-validator";
 import { useAuthStore } from "@/store/auth-store";
 
 interface TokenDialogProps {
@@ -18,6 +19,7 @@ export function TokenDialog({ open, onClose }: TokenDialogProps) {
   const [tokenValue, setTokenValue] = useState(token ?? "");
   const [baseUrlValue, setBaseUrlValue] = useState(apiBaseUrl ?? defaultApiBaseUrl);
   const [error, setError] = useState<string | null>(null);
+  const [isSubmitting, setSubmitting] = useState(false);
 
   const allowToken = Boolean(jwtToken);
 
@@ -26,6 +28,7 @@ export function TokenDialog({ open, onClose }: TokenDialogProps) {
       setTokenValue(token ?? "");
       setBaseUrlValue(apiBaseUrl ?? defaultApiBaseUrl);
       setError(null);
+      setSubmitting(false);
     }
   }, [open, token, apiBaseUrl]);
 
@@ -33,8 +36,9 @@ export function TokenDialog({ open, onClose }: TokenDialogProps) {
     return null;
   }
 
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    setError(null);
     const trimmedToken = tokenValue.trim();
     const trimmedUrl = baseUrlValue.trim().replace(/\/+$/, "");
 
@@ -47,10 +51,27 @@ export function TokenDialog({ open, onClose }: TokenDialogProps) {
     if (!/^https?:\/\//i.test(normalizedUrl)) {
       normalizedUrl = `http://${normalizedUrl}`;
     }
-    setApiBaseUrl(normalizedUrl);
+
     if (allowToken) {
+      setSubmitting(true);
+      try {
+        await validateApiToken({ baseUrl: normalizedUrl, token: trimmedToken });
+      } catch (error) {
+        const message =
+          error instanceof ApiTokenValidationError
+            ? error.message
+            : error instanceof Error && error.message
+            ? error.message
+            : "Не удалось проверить API ключ";
+        setError(message);
+        return;
+      } finally {
+        setSubmitting(false);
+      }
       setToken(trimmedToken);
     }
+
+    setApiBaseUrl(normalizedUrl);
     onClose();
   };
 
@@ -114,7 +135,7 @@ export function TokenDialog({ open, onClose }: TokenDialogProps) {
             >
               Отменить
             </button>
-            <button type="submit" className="button-primary">
+            <button type="submit" className="button-primary" disabled={isSubmitting}>
               Сохранить и подключиться
             </button>
           </div>
@@ -123,5 +144,6 @@ export function TokenDialog({ open, onClose }: TokenDialogProps) {
     </div>
   );
 }
+
 
 

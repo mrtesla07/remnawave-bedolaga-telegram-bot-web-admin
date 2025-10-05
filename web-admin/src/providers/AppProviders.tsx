@@ -53,13 +53,12 @@ function EventsBridge() {
     };
 
     const connect = () => {
-      const { token, jwtToken, apiBaseUrl } = authStore.getState();
+      const { token, apiBaseUrl } = authStore.getState();
       const base = String(apiBaseUrl || defaultApiBaseUrl || "").replace(/\/+$/, "");
-      const apiParam = jwtToken ? jwtToken : token ? token : null;
+      const apiParam = token || null;
       if (!apiParam) {
-        // No credentials: enable polling as last resort
+        // No API token: do not keep SSE/polling; UI will request token
         stopPolling();
-        startPolling();
         return;
       }
       const url = `${base}/notifications/events?api_key=${encodeURIComponent(apiParam)}`;

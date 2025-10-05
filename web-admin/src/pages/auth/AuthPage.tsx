@@ -4,6 +4,8 @@ import { apiClient } from "@/lib/api-client";
 import { useAuthStore } from "@/store/auth-store";
 import { AuthBackground } from "@/components/shared/AuthBackground";
 import { TokenDialog } from "@/components/auth/TokenDialog";
+import { ApiOfflineScreen } from "@/components/status/ApiOfflineScreen";
+import { useConnectionStore } from "@/store/connection-store";
 
 export function AuthPage() {
   const navigate = useNavigate();
@@ -11,6 +13,7 @@ export function AuthPage() {
   const setJwtToken = useAuthStore((s) => s.setJwtToken);
   const setUsername = useAuthStore((s) => s.setUsername);
   const setToken = useAuthStore((s) => s.setToken);
+  const isOnline = useConnectionStore((s) => s.isOnline);
 
   const [mode, setMode] = useState<"login" | "register">("register");
   const [login, setLogin] = useState("");
@@ -80,6 +83,10 @@ export function AuthPage() {
       setSubmitting(false);
     }
   };
+
+  if (!isOnline) {
+    return <ApiOfflineScreen />;
+  }
 
   return (
     <div className="relative flex min-h-screen items-center justify-center bg-background text-slate-100 overflow-hidden">
