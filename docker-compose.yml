@@ -86,16 +86,17 @@ services:
   web-admin-builder:
     image: node:20-alpine
     container_name: remnawave_web_admin_builder
-    working_dir: /src
+    working_dir: /app
     restart: "no"
     environment:
-      VITE_API_BASE_URL: "https://${ADMIN_DOMAIN}/api"
-      VITE_API_TIMEOUT: "${VITE_API_TIMEOUT:-15000}"
+      ITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://bot:8080}
+      VITE_API_TIMEOUT: ${VITE_API_TIMEOUT:-15000}
+      CHOKIDAR_USEPOLLING: "true"
     volumes:
-      - ./web-admin:/src
-      - web_admin_node_modules:/src/node_modules
-      - web_admin_dist:/src/dist
-    command: sh -c "npm ci && npm run build"
+      - ./web-admin:/app
+      - web_admin_node_modules:/app/node_modules
+      - web_admin_dist:/app/dist
+    command: sh -c "npm ci && npx vite build"
     networks:
       - bot_network
 
