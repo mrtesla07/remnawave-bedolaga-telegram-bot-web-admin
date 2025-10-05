@@ -57,12 +57,14 @@ async def send_test_notification(
     db: AsyncSession = Depends(get_db_session),
 ) -> dict:
     try:
-        from app.bot import dp
-        bot = dp.bot
+        from app.bot import bot as running_bot
     except Exception:
         raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "Bot is not ready")
 
-    service = AdminNotificationService(bot)
+    if running_bot is None:
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "Bot is not ready")
+
+    service = AdminNotificationService(running_bot)
     ok = await service._send_message("🧪 Тестовое уведомление из веб‑админки")
     if not ok:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Отправка не настроена (чат/права)")
