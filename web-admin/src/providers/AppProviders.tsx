@@ -1,6 +1,7 @@
 ﻿import { QueryClient, QueryClientProvider, useQueryClient } from "@tanstack/react-query";
-import { useEffect, type ReactNode } from "react";
-import { authStore } from "@/store/auth-store";
+import { useEffect, useRef, type ReactNode } from "react";
+import { authStore, useAuthStore } from "@/store/auth-store";
+import { apiClient } from "@/lib/api-client";
 import { defaultApiBaseUrl } from "@/lib/config";
 
 const queryClient = new QueryClient({
@@ -24,10 +25,54 @@ export function AppProviders({ children }: AppProvidersProps) {
   return (
     <QueryClientProvider client={queryClient}>
       <SessionManager />
+      <AuthIntegrityWatcher />
       <EventsBridge />
       {children}
     </QueryClientProvider>
   );
+}
+
+function AuthIntegrityWatcher() {
+  const jwtToken = useAuthStore((s) => s.jwtToken);
+  const hydrated = useAuthStore((s) => s.hydrated);
+  const lastCheckedRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!hydrated) return;
+    if (!jwtToken) {
+      lastCheckedRef.current = null;
+      return;
+    }
+    if (lastCheckedRef.current === jwtToken) return;
+
+    let cancelled = false;
+    const controller = new AbortController();
+    lastCheckedRef.current = jwtToken;
+
+    (async () => {
+      try {
+        await apiClient.get("/auth/me", { signal: controller.signal });
+      } catch (err) {
+        if (cancelled) return;
+        lastCheckedRef.current = null;
+        const status = (err as any)?.response?.status;
+        if (status === 401 || status === 404) {
+          try {
+            const store = authStore.getState();
+            store.clear();
+            store.setToken(null);
+          } catch {}
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      try { controller.abort(); } catch {}
+    };
+  }, [hydrated, jwtToken]);
+
+  return null;
 }
 
 function EventsBridge() {
