@@ -17,7 +17,7 @@
 ## Шаг 1. Подготовка
 ```bash
 # Клонируйте репозиторий
-git clone https://github.com/Fr1ngg/remnawave-bedolaga-telegram-bot.git
+git clone https://github.com/PEDZEO/remnawave-bedolaga-telegram-bot-web-admin
 cd remnawave-bedolaga-telegram-bot
 
 # Подготовьте каталоги
@@ -54,9 +54,6 @@ docker compose up -d
 - postgres, redis — БД и кеш
 - bot — сам бот + встроенный Web API (8080)
 - caddy — HTTPS reverse‑proxy и раздача админки
-- публикации портов бота:
-  - 8081 → Tribute/CryptoBot/MulenPay вебхуки (хостовой порт)
-  - 8082 → YooKassa вебхук (хостовой порт)
 
 ## Шаг 5. Настройка DNS
 - `ADMIN_DOMAIN` укажите в DNS (A/AAAA на IP VPS)
@@ -67,13 +64,6 @@ docker compose up -d
 - Админка: https://ADMIN_DOMAIN
   - При первом входе введите `WEB_API_DEFAULT_TOKEN` как API‑ключ в UI
   - UI обращается к бэкенду по `/api` → `remnawave_bot:8080`
-- Вебхуки (по опубликованным портам):
-  - http(s)://SERVER_IP:8081/tribute-webhook
-  - http(s)://SERVER_IP:8081/cryptobot-webhook
-  - http(s)://SERVER_IP:8081/mulenpay-webhook
-  - http(s)://SERVER_IP:8084/pal24-webhook
-  - http(s)://SERVER_IP:8082/yookassa-webhook
-  - Health: http(s)://SERVER_IP:8081/health
 
 ## Полезные команды
 ```bash
@@ -103,6 +93,4 @@ docker compose up -d
 ```
 
 ## Примечания
-- Вебхуки обслуживаются напрямую по портам 8081/8082/8084; Caddy их не проксирует.
-- Многие провайдеры требуют HTTPS и валидный домен; при использовании IP проверьте ограничения провайдера.
 - CORS: `WEB_API_ALLOWED_ORIGINS` должен включать ваш `https://ADMIN_DOMAIN`.
