@@ -4,10 +4,11 @@ from typing import AsyncGenerator, Optional, Any
 
 from fastapi import Depends, HTTPException, Request, Security, status
 from fastapi.security import APIKeyHeader
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database.database import AsyncSessionLocal
-from app.database.models import WebApiToken
+from app.database.models import AdminUser, WebApiToken
 from app.services.web_api_token_service import web_api_token_service
 
 
@@ -73,52 +74,54 @@ async def require_api_token(
         except Exception:
             api_key = None
 
+    class _AdminActor:
+        def __init__(self, username: str, user_id: Optional[int]):
+            self.name = username
+            self.user_id = user_id
+            self.is_active = True
+
+        def __repr__(self) -> str:  # pragma: no cover
+            return f"<AdminActor username='{self.name}'>"
+
+    async def _actor_from_payload(payload: dict) -> _AdminActor:
+        username_hint = str(payload.get("username") or payload.get("sub") or "admin")
+        user_id: Optional[int] = None
+        if payload.get("sub") is not None:
+            try:
+                user_id = int(payload["sub"])
+            except Exception:
+                raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid token")
+
+        admin = None
+        if user_id is not None:
+            result = await db.execute(select(AdminUser).where(AdminUser.id == user_id))
+            admin = result.scalar_one_or_none()
+
+        if not admin and payload.get("username"):
+            username_candidate = str(payload["username"]).strip().lower()
+            result = await db.execute(select(AdminUser).where(AdminUser.username == username_candidate))
+            admin = result.scalar_one_or_none()
+            if admin:
+                user_id = admin.id
+
+        if not admin:
+            raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Admin not found")
+
+        return _AdminActor(username=admin.username or username_hint, user_id=user_id)
+
     # 1) Prefer JWT if provided explicitly via Authorization header
     if bearer_cred and bearer_cred.count(".") == 2:
         payload = _verify_jwt(bearer_cred, JWT_SECRET)
         if not payload:
             raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid or expired token")
-
-        # Return a lightweight actor compatible with usages expecting `.name`
-        class _AdminActor:
-            def __init__(self, username: str, user_id: Optional[int]):
-                self.name = username
-                self.user_id = user_id
-                self.is_active = True
-
-            def __repr__(self) -> str:  # pragma: no cover
-                return f"<AdminActor username='{self.name}'>"
-
-        username = str(payload.get("username") or payload.get("sub") or "admin")
-        user_id = None
-        try:
-            user_id = int(payload.get("sub")) if payload.get("sub") is not None else None
-        except Exception:
-            user_id = None
-        return _AdminActor(username=username, user_id=user_id)
+        return await _actor_from_payload(payload)
 
     # 2) If query provides something that looks like a JWT, accept it the same way (for SSE)
     if api_key and api_key.count(".") == 2:
         payload = _verify_jwt(api_key, JWT_SECRET)
         if not payload:
             raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid or expired token")
-
-        class _AdminActor:
-            def __init__(self, username: str, user_id: Optional[int]):
-                self.name = username
-                self.user_id = user_id
-                self.is_active = True
-
-            def __repr__(self) -> str:  # pragma: no cover
-                return f"<AdminActor username='{self.name}'>"
-
-        username = str(payload.get("username") or payload.get("sub") or "admin")
-        user_id = None
-        try:
-            user_id = int(payload.get("sub")) if payload.get("sub") is not None else None
-        except Exception:
-            user_id = None
-        return _AdminActor(username=username, user_id=user_id)
+        return await _actor_from_payload(payload)
 
     # 3) Fall back to legacy API key token
     if not api_key:
