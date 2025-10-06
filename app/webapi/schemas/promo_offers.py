@@ -42,11 +42,21 @@ class PromoOfferResponse(BaseModel):
     subscription: Optional[PromoOfferSubscriptionInfo] = None
 
 
+
+class PromoOfferStats(BaseModel):
+    total: int
+    active: int
+    claimed: int
+    expired: int
+    pending: int
+
+
 class PromoOfferListResponse(BaseModel):
     items: List[PromoOfferResponse]
     total: int
     limit: int
     offset: int
+    stats: PromoOfferStats
 
 
 class PromoOfferCreateRequest(BaseModel):

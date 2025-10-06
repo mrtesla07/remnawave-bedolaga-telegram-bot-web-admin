@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Security, status, 
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database.crud.discount_offer import (
-    count_discount_offers,
+    aggregate_discount_offer_stats,
     get_offer_by_id,
     list_discount_offers,
     upsert_discount_offer,
@@ -36,6 +36,7 @@ from ..schemas.promo_offers import (
     PromoOfferTemplateUpdateRequest,
     PromoOfferTemplateCreateRequest,
     PromoOfferUserInfo,
+    PromoOfferStats,
 )
 
 router = APIRouter()
@@ -159,7 +160,7 @@ async def list_promo_offers(
         notification_type=notification_type,
         is_active=is_active,
     )
-    total = await count_discount_offers(
+    stats = await aggregate_discount_offer_stats(
         db,
         user_id=user_id,
         notification_type=notification_type,
@@ -168,9 +169,10 @@ async def list_promo_offers(
 
     return PromoOfferListResponse(
         items=[_serialize_offer(offer) for offer in offers],
-        total=total,
+        total=stats['total'],
         limit=limit,
         offset=offset,
+        stats=PromoOfferStats(**stats),
     )
 
 

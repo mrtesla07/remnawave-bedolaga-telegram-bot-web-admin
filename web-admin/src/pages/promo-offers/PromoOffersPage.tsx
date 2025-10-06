@@ -1,14 +1,18 @@
-import { useMemo, useState } from "react";
+﻿import { useMemo, useState } from "react";
+import clsx from "clsx";
 import type { FormEvent } from "react";
-import { Edit3, Gift, ListFilter, Plus, RefreshCw, Save, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, Edit3, Gift, ListFilter, Plus, RefreshCw, Save, X } from "lucide-react";
 import { useCreatePromoOffer, useCreatePromoOfferTemplate, useDeletePromoOffer, usePromoOfferLogs, usePromoOfferTemplates, usePromoOffersList, useUpdatePromoOfferTemplate } from "@/features/promo-offers/queries";
-import type { PromoOfferCreateInput } from "@/features/promo-offers/api";
+import type { PromoOfferCreateInput, PromoOfferStats, PromoOfferQuery } from "@/features/promo-offers/api";
 
 const PAGE_SIZE = 25;
 
+const OFFERS_PARAMS_STORAGE_KEY = "promo-offers:list";
+const LOGS_PARAMS_STORAGE_KEY = "promo-offers:logs";
+
 export default function PromoOffersPage() {
-  const { data, params, setParams, isLoading, isFetching } = usePromoOffersList({ limit: PAGE_SIZE, offset: 0 });
-  const { data: logs, params: logParams, setParams: setLogParams, isLoading: logsLoading, isFetching: logsFetching } = usePromoOfferLogs({ limit: PAGE_SIZE, offset: 0 });
+  const { data, params, setParams, isLoading, isFetching } = usePromoOffersList({ limit: PAGE_SIZE, offset: 0 }, { storageKey: OFFERS_PARAMS_STORAGE_KEY });
+  const { data: logs, params: logParams, setParams: setLogParams, isLoading: logsLoading, isFetching: logsFetching } = usePromoOfferLogs({ limit: PAGE_SIZE, offset: 0 }, { storageKey: LOGS_PARAMS_STORAGE_KEY });
   const { data: templates } = usePromoOfferTemplates();
   const createTemplate = useCreatePromoOfferTemplate();
   const updateTemplate = useUpdatePromoOfferTemplate();
@@ -29,6 +33,54 @@ export default function PromoOffersPage() {
   const [editingTemplate, setEditingTemplate] = useState<any | null>(null);
   const [isTemplateDialogOpen, setTemplateDialogOpen] = useState(false);
 
+  const stats = data?.stats;
+  const limit = params.limit ?? PAGE_SIZE;
+
+  const typeOptions = useMemo(() => {
+    const preset = new Set<string>(["custom", "extend_discount", "purchase_discount", "test_access"]);
+    (templates ?? []).forEach((template: any) => {
+      if (template?.offer_type) preset.add(template.offer_type);
+    });
+    (data?.items ?? []).forEach((item) => {
+      if (item?.notificationType) preset.add(item.notificationType);
+    });
+    return Array.from(preset);
+  }, [data?.items, templates]);
+
+  const filtersActive = Boolean(
+    params.user_id ||
+      params.notification_type ||
+      typeof params.is_active === "boolean",
+  );
+
+  const handleFilterChange = (partial: Partial<PromoOfferQuery>) => {
+    setParams((prev) => ({ ...prev, ...partial, offset: 0 }));
+  };
+
+  const handleResetFilters = () => {
+    setParams((prev) => ({
+      ...prev,
+      user_id: undefined,
+      notification_type: undefined,
+      is_active: undefined,
+      offset: 0,
+    }));
+  };
+
+  const handlePrevPage = () => {
+    setParams((prev) => ({
+      ...prev,
+      offset: Math.max(0, (prev.offset ?? 0) - limit),
+    }));
+  };
+
+  const handleNextPage = () => {
+    setParams((prev) => ({
+      ...prev,
+      offset: (prev.offset ?? 0) + limit,
+    }));
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
@@ -46,19 +98,36 @@ export default function PromoOffersPage() {
         </div>
       </div>
 
-      <OffersTable
-        items={data?.items ?? []}
-        isLoading={isLoading || isFetching}
-        onFilter={(q) => setParams((p) => ({ ...p, ...q, offset: 0 }))}
-        onDelete={(id) => deleteMutation.mutate(id)}
-      />
+      <section className="space-y-4">
+        <OffersFilters
+          params={params}
+          typeOptions={typeOptions}
+          filtersActive={filtersActive}
+          onChange={handleFilterChange}
+          onReset={handleResetFilters}
+        />
+        {stats ? <StatsPanel stats={stats} /> : null}
+        <OffersTable
+          items={data?.items ?? []}
+          isLoading={isLoading || isFetching}
+          onDelete={(id) => deleteMutation.mutate(id)}
+        />
+        <PaginationBar
+          meta={meta}
+          canPrev={canPrev}
+          canNext={canNext}
+          onPrev={handlePrevPage}
+          onNext={handleNextPage}
+          disabled={isLoading || isFetching}
+        />
+      </section>
 
       <section className="space-y-4">
         <header className="flex items-center justify-between">
           <h2 className="text-lg font-semibold text-white">Журнал операций</h2>
           <div className="flex items-center gap-2 text-xs text-textMuted">
             <ListFilter className="h-4 w-4" />
-            <input className="rounded-xl border border-outline/40 bg-surface/60 px-3 py-1 text-sm text-white" placeholder="User ID" value={String(logParams.user_id ?? "")} onChange={(e) => setLogParams((p) => ({ ...p, user_id: e.target.value ? Number(e.target.value) : undefined, offset: 0 }))} />
+            <input className="rounded-xl border border-outline/40 bg-surface/60 px-3 py-1 text-sm text-white" placeholder="ID пользователя" value={String(logParams.user_id ?? "")} onChange={(e) => setLogParams((p) => ({ ...p, user_id: e.target.value ? Number(e.target.value) : undefined, offset: 0 }))} />
           </div>
         </header>
         <LogsTable items={logs?.items ?? []} isLoading={logsLoading || logsFetching} />
@@ -172,7 +241,165 @@ export default function PromoOffersPage() {
   );
 }
 
-function OffersTable({ items, isLoading, onFilter, onDelete }: { items: any[]; isLoading?: boolean; onFilter: (q: Record<string, any>) => void; onDelete: (id: number) => void }) {
+function formatInt(value: number): string {
+  return new Intl.NumberFormat("ru-RU").format(value);
+}
+
+function StatsCard({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="rounded-2xl border border-outline/30 bg-surface/80 p-3">
+      <div className="text-xs uppercase tracking-[0.28em] text-textMuted">{label}</div>
+      <div className="mt-2 text-xl font-semibold text-white">{formatInt(value)}</div>
+    </div>
+  );
+}
+
+function StatsPanel({ stats }: { stats: PromoOfferStats }) {
+  const progress = stats.total > 0 ? Math.round((stats.claimed / stats.total) * 100) : 0;
+  const waiting = Math.max(stats.total - stats.claimed, 0);
+
+  return (
+    <div className="rounded-3xl border border-outline/40 bg-surface/60 p-4">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <StatsCard label="Всего" value={stats.total} />
+        <StatsCard label="Активные" value={stats.active} />
+        <StatsCard label="Получено" value={stats.claimed} />
+        <StatsCard label="Истекли" value={stats.expired} />
+      </div>
+      <div className="mt-4">
+        <div className="flex items-center justify-between text-xs uppercase tracking-[0.28em] text-textMuted">
+          <span>Прогресс выдачи</span>
+          <span>{progress}%</span>
+        </div>
+        <div className="mt-2 h-2 w-full rounded-full bg-outline/40">
+          <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${progress}%` }} />
+        </div>
+        <div className="mt-2 text-xs text-textMuted">
+          {formatInt(stats.claimed)} из {formatInt(stats.total)} подтверждено, {formatInt(waiting)} в работе.
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function OffersFilters({
+  params,
+  typeOptions,
+  filtersActive,
+  onChange,
+  onReset,
+}: {
+  params: PromoOfferQuery;
+  typeOptions: string[];
+  filtersActive: boolean;
+  onChange: (partial: Partial<PromoOfferQuery>) => void;
+  onReset: () => void;
+}) {
+  const statusValue = typeof params.is_active === "boolean" ? (params.is_active ? "active" : "inactive") : "";
+  const options = Array.from(new Set(typeOptions)).sort();
+
+  return (
+    <div className="rounded-3xl border border-outline/40 bg-surface/60 p-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-center gap-2 text-sm font-semibold text-white">
+          <ListFilter className="h-4 w-4" />
+          <span>Фильтры</span>
+        </div>
+        <button type="button" className="button-ghost inline-flex items-center gap-2 disabled:opacity-40" onClick={onReset} disabled={!filtersActive}>
+          Сбросить
+        </button>
+      </div>
+      <div className="mt-3 grid gap-3 md:grid-cols-4">
+        <label className="flex flex-col gap-2">
+          <span className="text-xs uppercase tracking-[0.28em] text-textMuted">ID пользователя</span>
+          <input
+            type="number"
+            min={1}
+            inputMode="numeric"
+            className="rounded-xl border border-outline/40 bg-surface/70 px-3 py-2 text-sm text-white"
+            value={params.user_id ?? ""}
+            onChange={(e) => onChange({ user_id: e.target.value ? Number(e.target.value) : undefined })}
+            placeholder="Например, 123"
+          />
+        </label>
+        <label className="flex flex-col gap-2">
+          <span className="text-xs uppercase tracking-[0.28em] text-textMuted">Тип уведомления</span>
+          <select
+            className="rounded-xl border border-outline/40 bg-surface/70 px-3 py-2 text-sm text-white"
+            value={params.notification_type ?? ""}
+            onChange={(e) => onChange({ notification_type: e.target.value || undefined })}
+          >
+            <option value="">Все типы</option>
+            {options.map((option) => (
+              <option key={option} value={option}>
+                {option}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="flex flex-col gap-2">
+          <span className="text-xs uppercase tracking-[0.28em] text-textMuted">Статус</span>
+          <select
+            className="rounded-xl border border-outline/40 bg-surface/70 px-3 py-2 text-sm text-white"
+            value={statusValue}
+            onChange={(e) => {
+              const value = e.target.value;
+              onChange({ is_active: value === "" ? undefined : value === "active" });
+            }}
+          >
+            <option value="">Все</option>
+            <option value="active">Активные</option>
+            <option value="inactive">Неактивные</option>
+          </select>
+        </label>
+      </div>
+    </div>
+  );
+}
+
+function PaginationBar({
+  meta,
+  canPrev,
+  canNext,
+  onPrev,
+  onNext,
+  disabled,
+}: {
+  meta: string;
+  canPrev: boolean;
+  canNext: boolean;
+  onPrev: () => void;
+  onNext: () => void;
+  disabled?: boolean;
+}) {
+  if (!meta && !canPrev && !canNext) return null;
+  return (
+    <div className="flex flex-col gap-3 rounded-3xl border border-outline/40 bg-surface/60 px-4 py-3 text-sm text-textMuted md:flex-row md:items-center md:justify-between">
+      <span>{meta || "Нет данных"}</span>
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          className={clsx("button-ghost inline-flex items-center gap-2", (!canPrev || disabled) && "cursor-not-allowed opacity-40") }
+          onClick={onPrev}
+          disabled={!canPrev || disabled}
+        >
+          <ChevronLeft className="h-4 w-4" /> Назад
+        </button>
+        <button
+          type="button"
+          className={clsx("button-ghost inline-flex items-center gap-2", (!canNext || disabled) && "cursor-not-allowed opacity-40") }
+          onClick={onNext}
+          disabled={!canNext || disabled}
+        >
+          Вперед <ChevronRight className="h-4 w-4" />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+
+function OffersTable({ items, isLoading, onDelete }: { items: any[]; isLoading?: boolean; onDelete: (id: number) => void }) {
   if (isLoading) return <div className="rounded-3xl border border-outline/40 bg-surface/60 p-8 text-center text-textMuted">Загрузка…</div>;
   if (!items.length) return <div className="rounded-3xl border border-outline/40 bg-surface/60 p-8 text-center text-textMuted">Предложения не найдены.</div>;
   return (
@@ -190,21 +417,35 @@ function OffersTable({ items, isLoading, onFilter, onDelete }: { items: any[]; i
           </tr>
         </thead>
         <tbody className="divide-y divide-outline/40">
-          {items.map((o) => (
-            <tr key={o.id} className="bg-surface/60">
-              <td className="px-4 py-3 font-medium text-white">{o.user?.username ? `@${o.user.username}` : `#${o.userId}`}</td>
-              <td className="px-4 py-3 text-textMuted">{o.notificationType}</td>
-              <td className="px-4 py-3 text-textMuted">{o.discountPercent}%</td>
-              <td className="px-4 py-3 text-textMuted">{o.bonusRubles?.toFixed(2)} ₽</td>
-              <td className="px-4 py-3 text-textMuted">до {new Date(o.expiresAt).toLocaleString("ru-RU")}</td>
-              <td className="px-4 py-3 text-textMuted">{o.isActive ? "Активно" : "Выключено"}</td>
-              <td className="px-4 py-3">
-                <button className="rounded-xl border border-outline/40 bg-danger/10 px-3 py-1 text-xs text-danger hover:bg-danger/20" onClick={() => onDelete(o.id)}>
-                  Удалить
-                </button>
-              </td>
-            </tr>
-          ))}
+          {items.map((o) => {
+            const statusLabel = o.claimedAt ? "Получено" : o.isActive ? "Активно" : "Неактивно";
+            const statusTone = o.claimedAt
+              ? "bg-success/15 text-success"
+              : o.isActive
+              ? "bg-primary/15 text-primary"
+              : "bg-outline/30 text-textMuted";
+            const expiresText = o.claimedAt
+              ? `получено ${new Date(o.claimedAt).toLocaleString("ru-RU")}`
+              : `до ${new Date(o.expiresAt).toLocaleString("ru-RU")}`;
+
+            return (
+              <tr key={o.id} className="bg-surface/60">
+                <td className="px-4 py-3 font-medium text-white">{o.user?.username ? `@${o.user.username}` : `#${o.userId}`}</td>
+                <td className="px-4 py-3 text-textMuted">{o.notificationType}</td>
+                <td className="px-4 py-3 text-textMuted">{o.discountPercent}%</td>
+                <td className="px-4 py-3 text-textMuted">{typeof o.bonusRubles === "number" ? `${o.bonusRubles.toFixed(2)} ₽` : "—"}</td>
+                <td className="px-4 py-3 text-textMuted">{expiresText}</td>
+                <td className="px-4 py-3">
+                  <span className={clsx("inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-wide", statusTone)}>{statusLabel}</span>
+                </td>
+                <td className="px-4 py-3">
+                  <button className="rounded-xl border border-outline/40 bg-danger/10 px-3 py-1 text-xs text-danger hover:bg-danger/20" onClick={() => onDelete(o.id)}>
+                    Удалить
+                  </button>
+                </td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </div>
@@ -288,7 +529,7 @@ function CreateOfferDialog({ templates, onClose, onCreate, isSubmitting, initial
         <form className="mt-6 space-y-4" onSubmit={handleSubmit}>
           <div className="grid gap-4 md:grid-cols-2">
             <label className="flex flex-col gap-2">
-              <span className="text-xs uppercase tracking-[0.28em] text-textMuted">User ID</span>
+              <span className="text-xs uppercase tracking-[0.28em] text-textMuted">ID пользователя</span>
               <input className="rounded-2xl border border-outline/40 bg-surface/60 px-3 py-2 text-sm text-white" inputMode="numeric" pattern="[0-9]*" value={userId} onChange={(e) => setUserId(e.target.value.replace(/[^0-9]/g, ""))} placeholder="Внутренний ID или Telegram ID" />
             </label>
             <label className="flex flex-col gap-2">
