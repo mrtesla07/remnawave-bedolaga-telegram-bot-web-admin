@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import type { FormEvent } from "react";
 import { Edit3, Gift, ListFilter, Plus, RefreshCw, Save, X } from "lucide-react";
-import { useCreatePromoOffer, useCreatePromoOfferTemplate, usePromoOfferLogs, usePromoOfferTemplates, usePromoOffersList, useUpdatePromoOfferTemplate } from "@/features/promo-offers/queries";
+import { useCreatePromoOffer, useCreatePromoOfferTemplate, useDeletePromoOffer, usePromoOfferLogs, usePromoOfferTemplates, usePromoOffersList, useUpdatePromoOfferTemplate } from "@/features/promo-offers/queries";
 import type { PromoOfferCreateInput } from "@/features/promo-offers/api";
 
 const PAGE_SIZE = 25;
@@ -13,6 +13,7 @@ export default function PromoOffersPage() {
   const createTemplate = useCreatePromoOfferTemplate();
   const updateTemplate = useUpdatePromoOfferTemplate();
   const createMutation = useCreatePromoOffer();
+  const deleteMutation = useDeletePromoOffer();
 
   const canPrev = (params.offset ?? 0) > 0;
   const canNext = data ? (params.offset ?? 0) + (params.limit ?? PAGE_SIZE) < data.total : false;
@@ -24,6 +25,7 @@ export default function PromoOffersPage() {
   }, [data]);
 
   const [isFormOpen, setFormOpen] = useState(false);
+  const [createDefaults, setCreateDefaults] = useState<{ templateId?: number; notificationType?: string; validHours?: number; discountPercent?: number; bonusRubles?: number } | null>(null);
   const [editingTemplate, setEditingTemplate] = useState<any | null>(null);
   const [isTemplateDialogOpen, setTemplateDialogOpen] = useState(false);
 
@@ -48,6 +50,7 @@ export default function PromoOffersPage() {
         items={data?.items ?? []}
         isLoading={isLoading || isFetching}
         onFilter={(q) => setParams((p) => ({ ...p, ...q, offset: 0 }))}
+        onDelete={(id) => deleteMutation.mutate(id)}
       />
 
       <section className="space-y-4">
@@ -67,6 +70,11 @@ export default function PromoOffersPage() {
           onClose={() => setFormOpen(false)}
           onCreate={(input) => createMutation.mutateAsync(input).then(() => setFormOpen(false))}
           isSubmitting={createMutation.isPending}
+          initialTemplateId={createDefaults?.templateId}
+          initialNotificationType={createDefaults?.notificationType}
+          initialValidHours={createDefaults?.validHours}
+          initialDiscountPercent={createDefaults?.discountPercent}
+          initialBonusRubles={createDefaults?.bonusRubles}
         />
       ) : null}
 
@@ -112,6 +120,31 @@ export default function PromoOffersPage() {
                     >
                       <Edit3 className="mr-1 inline h-3.5 w-3.5" /> Редактировать
                     </button>
+                    <button
+                      className="ml-2 rounded-xl border border-outline/40 bg-primary/15 px-3 py-1 text-xs text-primary hover:bg-primary/25"
+                      onClick={() => {
+                        // Предпросмотр: открываем диалог с полями (без сохранения)
+                        setEditingTemplate(t);
+                        setTemplateDialogOpen(true);
+                      }}
+                    >
+                      Просмотр
+                    </button>
+                    <button
+                      className="ml-2 rounded-xl border border-outline/40 bg-success/15 px-3 py-1 text-xs text-success hover:bg-success/25"
+                      onClick={() => {
+                        setCreateDefaults({
+                          templateId: t.id,
+                          notificationType: "promo_template",
+                          validHours: t.valid_hours,
+                          discountPercent: t.discount_percent,
+                          bonusRubles: (t.bonus_amount_kopeks || 0) / 100,
+                        });
+                        setFormOpen(true);
+                      }}
+                    >
+                      Отправить пользователю
+                    </button>
                   </td>
                 </tr>
               ))}
@@ -139,7 +172,7 @@ export default function PromoOffersPage() {
   );
 }
 
-function OffersTable({ items, isLoading, onFilter }: { items: any[]; isLoading?: boolean; onFilter: (q: Record<string, any>) => void }) {
+function OffersTable({ items, isLoading, onFilter, onDelete }: { items: any[]; isLoading?: boolean; onFilter: (q: Record<string, any>) => void; onDelete: (id: number) => void }) {
   if (isLoading) return <div className="rounded-3xl border border-outline/40 bg-surface/60 p-8 text-center text-textMuted">Загрузка…</div>;
   if (!items.length) return <div className="rounded-3xl border border-outline/40 bg-surface/60 p-8 text-center text-textMuted">Предложения не найдены.</div>;
   return (
@@ -153,6 +186,7 @@ function OffersTable({ items, isLoading, onFilter }: { items: any[]; isLoading?:
             <th className="px-4 py-3 text-left">Бонус</th>
             <th className="px-4 py-3 text-left">Срок</th>
             <th className="px-4 py-3 text-left">Статус</th>
+            <th className="px-4 py-3 text-left">Действия</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-outline/40">
@@ -164,6 +198,11 @@ function OffersTable({ items, isLoading, onFilter }: { items: any[]; isLoading?:
               <td className="px-4 py-3 text-textMuted">{o.bonusRubles?.toFixed(2)} ₽</td>
               <td className="px-4 py-3 text-textMuted">до {new Date(o.expiresAt).toLocaleString("ru-RU")}</td>
               <td className="px-4 py-3 text-textMuted">{o.isActive ? "Активно" : "Выключено"}</td>
+              <td className="px-4 py-3">
+                <button className="rounded-xl border border-outline/40 bg-danger/10 px-3 py-1 text-xs text-danger hover:bg-danger/20" onClick={() => onDelete(o.id)}>
+                  Удалить
+                </button>
+              </td>
             </tr>
           ))}
         </tbody>
@@ -203,24 +242,32 @@ function LogsTable({ items, isLoading }: { items: any[]; isLoading?: boolean }) 
   );
 }
 
-function CreateOfferDialog({ templates, onClose, onCreate, isSubmitting }: { templates: any[]; onClose: () => void; onCreate: (input: PromoOfferCreateInput) => Promise<void>; isSubmitting: boolean }) {
+function CreateOfferDialog({ templates, onClose, onCreate, isSubmitting, initialTemplateId, initialNotificationType, initialValidHours, initialDiscountPercent, initialBonusRubles }: { templates: any[]; onClose: () => void; onCreate: (input: PromoOfferCreateInput) => Promise<void>; isSubmitting: boolean; initialTemplateId?: number; initialNotificationType?: string; initialValidHours?: number; initialDiscountPercent?: number; initialBonusRubles?: number; }) {
   const [userId, setUserId] = useState("");
-  const [templateId, setTemplateId] = useState<number | "">(templates[0]?.id ?? "");
-  const [validHours, setValidHours] = useState(48);
-  const [discountPercent, setDiscountPercent] = useState(20);
-  const [bonusRubles, setBonusRubles] = useState(0);
-  const [notificationType, setNotificationType] = useState("custom");
+  const [templateId, setTemplateId] = useState<number | "">(initialTemplateId ?? templates[0]?.id ?? "");
+  const [validHours, setValidHours] = useState(initialValidHours ?? 48);
+  const [discountPercent, setDiscountPercent] = useState(initialDiscountPercent ?? 20);
+  const [bonusRubles, setBonusRubles] = useState(initialBonusRubles ?? 0);
+  const [notificationType, setNotificationType] = useState(initialNotificationType ?? "custom");
+  const [sendNotification, setSendNotification] = useState<boolean>(true);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
+    // Map UI russian-friendly selection to actual notification_type
+    let finalNotification = notificationType;
+    if (notificationType === "promo_template" && templateId) {
+      finalNotification = `promo_template_${templateId}`;
+    }
+
     const payload: PromoOfferCreateInput = {
       user_id: userId ? Number(userId) : 0,
-      notification_type: notificationType,
+      notification_type: finalNotification,
       valid_hours: Number(validHours),
       discount_percent: Number(discountPercent),
       bonus_amount_kopeks: Math.round(Number(bonusRubles) * 100),
       effect_type: "percent_discount",
       extra_data: { template_id: templateId || undefined },
+      send_notification: sendNotification,
     };
     await onCreate(payload);
   };
@@ -267,7 +314,15 @@ function CreateOfferDialog({ templates, onClose, onCreate, isSubmitting }: { tem
             </label>
             <label className="flex flex-col gap-2">
               <span className="text-xs uppercase tracking-[0.28em] text-textMuted">Тип уведомления</span>
-              <input className="rounded-2xl border border-outline/40 bg-surface/60 px-3 py-2 text-sm text-white" value={notificationType} onChange={(e) => setNotificationType(e.target.value)} placeholder="custom / subscription_renewal / ..." />
+              <select className="rounded-2xl border border-outline/40 bg-surface/70 px-3 py-2 text-sm text-white" value={notificationType} onChange={(e) => setNotificationType(e.target.value)}>
+                <option value="custom">Промо (custom)</option>
+                <option value="subscription_renewal">Продление подписки</option>
+                <option value="promo_template">Промо по шаблону</option>
+              </select>
+            </label>
+            <label className="flex items-center gap-2">
+              <input type="checkbox" checked={sendNotification} onChange={(e) => setSendNotification(e.target.checked)} />
+              <span className="text-sm text-textMuted">Отправить уведомление</span>
             </label>
           </div>
           <footer className="flex items-center justify-end gap-3">

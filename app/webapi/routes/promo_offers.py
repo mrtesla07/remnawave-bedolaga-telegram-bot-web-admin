@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Security, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Security, status, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database.crud.discount_offer import (
@@ -18,6 +18,7 @@ from app.database.crud.promo_offer_template import (
     update_promo_offer_template,
 )
 from app.database.models import PromoOfferTemplate
+from app.database.crud.promo_offer_log import log_promo_offer_action
 from app.database.models import DiscountOffer, PromoOfferLog, PromoOfferTemplate, Subscription, User
 from app.database.crud.user import get_user_by_id as crud_get_user_by_id, get_user_by_telegram_id as crud_get_user_by_telegram_id
 
@@ -220,7 +221,86 @@ async def create_promo_offer(
 
     await db.refresh(offer, attribute_names=["user", "subscription"])
 
+    # Optional immediate notification to user
+    if payload.send_notification:
+        try:
+            from app.bot import bot as running_bot  # type: ignore
+        except Exception:
+            running_bot = None
+
+        if running_bot is not None and offer.user and offer.user.telegram_id:
+            try:
+                # If template id is present in extra data, render button accordingly
+                template_id = None
+                try:
+                    template_id = int((offer.extra_data or {}).get("template_id"))
+                except Exception:
+                    template_id = None
+
+                if template_id is not None:
+                    template = await get_promo_offer_template_by_id(db, template_id)
+                else:
+                    template = None
+
+                if template:
+                    from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup  # type: ignore
+                    from app.localization.loader import get_texts  # type: ignore
+                    from app.handlers.admin.promo_offers import _render_template_text  # type: ignore
+
+                    user_lang = getattr(offer.user, "language", "ru") or "ru"
+                    message_text = _render_template_text(template, user_lang)
+                    keyboard = InlineKeyboardMarkup(
+                        inline_keyboard=[[InlineKeyboardButton(text=template.button_text, callback_data=f"claim_discount_{offer.id}")]]
+                    )
+                    try:
+                        await running_bot.send_message(offer.user.telegram_id, message_text, reply_markup=keyboard, parse_mode="HTML")
+                    except Exception:
+                        pass
+                else:
+                    # Fallback: simple text notification in Russian
+                    try:
+                        await running_bot.send_message(
+                            offer.user.telegram_id,
+                            f"🎁 Новое промо‑предложение: скидка {offer.discount_percent}% действует до {offer.expires_at:%d.%m.%Y %H:%M}",
+                        )
+                    except Exception:
+                        pass
+            except Exception:
+                pass
+
     return _serialize_offer(offer)
+
+
+@router.delete("/{offer_id}", status_code=status.HTTP_204_NO_CONTENT, response_class=Response)
+async def delete_promo_offer(
+    offer_id: int,
+    _: Any = Security(require_api_token),
+    db: AsyncSession = Depends(get_db_session),
+) -> Response:
+    offer = await get_offer_by_id(db, offer_id)
+    if not offer:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Promo offer not found")
+
+    # Soft-delete: deactivate and log
+    offer.is_active = False
+    await db.commit()
+    try:
+        await log_promo_offer_action(
+            db,
+            user_id=offer.user_id,
+            offer_id=offer.id,
+            action="disabled",
+            source=offer.notification_type,
+            percent=offer.discount_percent,
+            effect_type=offer.effect_type,
+            details={"reason": "offer_deleted"},
+        )
+    except Exception:
+        try:
+            await db.rollback()
+        except Exception:
+            pass
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.get("/logs", response_model=PromoOfferLogListResponse)

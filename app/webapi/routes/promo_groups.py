@@ -177,7 +177,7 @@ async def update_promo_group_endpoint(
     return _serialize(group, members_count=members_count)
 
 
-@router.delete("/{group_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/{group_id}", status_code=status.HTTP_204_NO_CONTENT, response_class=Response)
 async def delete_promo_group_endpoint(
     group_id: int,
     _: Any = Security(require_api_token),

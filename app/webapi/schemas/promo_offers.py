@@ -58,6 +58,7 @@ class PromoOfferCreateRequest(BaseModel):
     subscription_id: Optional[int] = None
     effect_type: str = Field("percent_discount", min_length=1)
     extra_data: Dict[str, Any] = Field(default_factory=dict)
+    send_notification: bool = Field(False, description="Отправить уведомление пользователю сразу после создания")
 
 
 class PromoOfferTemplateResponse(BaseModel):

@@ -202,7 +202,7 @@ async def update_me(payload: AdminProfileUpdateRequest, request: Request, db: As
     )
 
 
-@router.post("/reset-admin", status_code=status.HTTP_204_NO_CONTENT)
+@router.post("/reset-admin", status_code=status.HTTP_204_NO_CONTENT, response_class=Response)
 async def reset_admin_http(request: Request, payload: AuthRegisterRequest, db: AsyncSession = Depends(get_db_session)) -> Response:
     token = request.headers.get("X-Admin-Reset-Token")
     expected = settings.get_admin_reset_token()

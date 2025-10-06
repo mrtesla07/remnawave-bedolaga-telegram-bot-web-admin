@@ -136,4 +136,23 @@ def create_web_api_app() -> FastAPI:
     app.include_router(remnawave.router, prefix="/remnawave", tags=["remnawave"])
     app.include_router(miniapp.router, prefix="/miniapp", tags=["miniapp"])
 
+    # Debug 204 routes: log any route configured with 204 that may return a body
+    try:  # pragma: no cover - diagnostic helper
+        from fastapi.routing import APIRoute
+        import logging as _logging
+        _log = _logging.getLogger("web_api")
+        for route in app.router.routes:
+            if isinstance(route, APIRoute):
+                status_code = getattr(route, "status_code", None)
+                if status_code == 204:
+                    _log.debug(
+                        "Route 204 configured: methods=%s path=%s response_model=%s response_class=%s",
+                        sorted(list(route.methods or [])),
+                        route.path,
+                        getattr(route, "response_model", None),
+                        getattr(route, "response_class", None),
+                    )
+    except Exception:
+        pass
+
     return app

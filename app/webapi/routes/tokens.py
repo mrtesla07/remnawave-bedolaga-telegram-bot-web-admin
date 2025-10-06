@@ -105,7 +105,7 @@ async def activate_token(
     return _serialize(token)
 
 
-@router.delete("/{token_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/{token_id}", status_code=status.HTTP_204_NO_CONTENT, response_class=Response)
 async def delete_token_endpoint(
     token_id: int,
     _: WebApiToken = Security(require_api_token),

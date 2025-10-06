@@ -122,6 +122,7 @@ async def list_campaigns(
     "/{campaign_id}",
     status_code=status.HTTP_204_NO_CONTENT,
     summary="Удалить рекламную кампанию",
+    response_class=Response,
 )
 async def delete_campaign_endpoint(
     campaign_id: int,

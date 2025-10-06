@@ -73,6 +73,7 @@ export interface PromoOfferCreateInput {
   subscription_id?: number | null;
   effect_type?: string;
   extra_data?: Record<string, any>;
+  send_notification?: boolean;
 }
 
 export interface PromoOfferListResponse {
@@ -129,6 +130,7 @@ export async function createPromoOffer(input: PromoOfferCreateInput): Promise<Pr
     subscription_id: input.subscription_id ?? null,
     effect_type: (input.effect_type || "percent_discount").trim(),
     extra_data: input.extra_data || {},
+    send_notification: Boolean(input.send_notification) === true,
   };
   const { data } = await apiClient.post<PromoOfferDto>("/promo-offers", payload);
   return mapDto(data);
@@ -220,6 +222,10 @@ export async function updatePromoOfferTemplate(id: number, payload: Partial<Prom
 export async function createPromoOfferTemplate(payload: Partial<PromoOfferTemplateDto> & { name: string; offer_type: string; message_text: string; button_text: string; valid_hours: number; }): Promise<PromoOfferTemplateDto> {
   const { data } = await apiClient.post<PromoOfferTemplateDto>("/promo-offers/templates", payload);
   return data;
+}
+
+export async function deletePromoOffer(id: number): Promise<void> {
+  await apiClient.delete(`/promo-offers/${id}`);
 }
 
 export function toKopeks(rubles: number | undefined): number {
