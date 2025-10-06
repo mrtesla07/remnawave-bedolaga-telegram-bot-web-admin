@@ -17,7 +17,9 @@ from app.database.crud.promo_offer_template import (
     list_promo_offer_templates,
     update_promo_offer_template,
 )
+from app.database.models import PromoOfferTemplate
 from app.database.models import DiscountOffer, PromoOfferLog, PromoOfferTemplate, Subscription, User
+from app.database.crud.user import get_user_by_id as crud_get_user_by_id, get_user_by_telegram_id as crud_get_user_by_telegram_id
 
 from ..dependencies import get_db_session, require_api_token
 from ..schemas.promo_offers import (
@@ -31,6 +33,7 @@ from ..schemas.promo_offers import (
     PromoOfferTemplateListResponse,
     PromoOfferTemplateResponse,
     PromoOfferTemplateUpdateRequest,
+    PromoOfferTemplateCreateRequest,
     PromoOfferUserInfo,
 )
 
@@ -187,20 +190,25 @@ async def create_promo_offer(
     if not payload.effect_type.strip():
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "effect_type must not be empty")
 
-    user = await db.get(User, payload.user_id)
+    # Accept either internal user_id or Telegram ID in user_id field for convenience
+    # Support passing either internal user.id or Telegram ID in user_id field
+    user = await crud_get_user_by_id(db, payload.user_id)
+    if not user:
+        user = await crud_get_user_by_telegram_id(db, payload.user_id)
     if not user:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "User not found")
+    actual_user_id = int(user.id)
 
     if payload.subscription_id is not None:
         subscription = await db.get(Subscription, payload.subscription_id)
         if not subscription:
             raise HTTPException(status.HTTP_404_NOT_FOUND, "Subscription not found")
-        if subscription.user_id != payload.user_id:
+        if subscription.user_id != actual_user_id:
             raise HTTPException(status.HTTP_400_BAD_REQUEST, "Subscription does not belong to the user")
 
     offer = await upsert_discount_offer(
         db,
-        user_id=payload.user_id,
+        user_id=actual_user_id,
         subscription_id=payload.subscription_id,
         notification_type=payload.notification_type.strip(),
         discount_percent=payload.discount_percent,
@@ -308,6 +316,43 @@ async def update_promo_offer_template_endpoint(
     )
 
     return _serialize_template(updated_template)
+
+
+@router.post("/templates", response_model=PromoOfferTemplateResponse, status_code=status.HTTP_201_CREATED)
+async def create_promo_offer_template_endpoint(
+    payload: PromoOfferTemplateCreateRequest,
+    _: Any = Security(require_api_token),
+    db: AsyncSession = Depends(get_db_session),
+) -> PromoOfferTemplateResponse:
+    if payload.valid_hours <= 0:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "valid_hours must be positive")
+    if payload.active_discount_hours is not None and payload.active_discount_hours <= 0:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "active_discount_hours must be positive")
+    if payload.test_duration_hours is not None and payload.test_duration_hours <= 0:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "test_duration_hours must be positive")
+    if payload.discount_percent < 0:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "discount_percent must be non-negative")
+    if payload.bonus_amount_kopeks < 0:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "bonus_amount_kopeks must be non-negative")
+
+    template = PromoOfferTemplate(
+        name=payload.name,
+        offer_type=payload.offer_type,
+        message_text=payload.message_text,
+        button_text=payload.button_text,
+        valid_hours=payload.valid_hours,
+        discount_percent=payload.discount_percent,
+        bonus_amount_kopeks=payload.bonus_amount_kopeks,
+        active_discount_hours=payload.active_discount_hours,
+        test_duration_hours=payload.test_duration_hours,
+        test_squad_uuids=list(payload.test_squad_uuids or []),
+        is_active=payload.is_active if payload.is_active is not None else True,
+    )
+
+    db.add(template)
+    await db.commit()
+    await db.refresh(template)
+    return _serialize_template(template)
 
 
 @router.get("/{offer_id}", response_model=PromoOfferResponse)

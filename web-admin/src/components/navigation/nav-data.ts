@@ -46,6 +46,7 @@ export const NAV_SECTIONS: NavSection[] = [
       { label: "Пользователи", to: "/users", icon: Users },
       { label: "Подписки", to: "/subscriptions", icon: CreditCard },
       { label: "Промокоды", to: "/promocodes", icon: Gift },
+      { label: "Промо-предложения", to: "/promo-offers", icon: Radio, badge: "new" },
       { label: "Тикеты", to: "/tickets", icon: Ticket },
       { label: "Рассылки", to: "/campaigns", icon: Megaphone, badge: "beta" },
     ],

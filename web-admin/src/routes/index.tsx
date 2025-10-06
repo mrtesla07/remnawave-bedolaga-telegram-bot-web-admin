@@ -22,6 +22,7 @@ import LogsPage from "@/pages/logs/LogsPage";
 import BackupsPage from "@/pages/backups/BackupsPage";
 import SecurityPage from "@/pages/security/SecurityPage";
 import NotificationsPage from "@/pages/notifications/NotificationsPage";
+import PromoOffersPage from "@/pages/promo-offers/PromoOffersPage";
 
 const placeholderRoutes = [
   { path: "statistics", title: "Статистика", description: "Метрики продукта и воронок продаж." },
@@ -62,6 +63,7 @@ const router = createBrowserRouter([
       { path: "subscriptions", element: <SubscriptionsPage /> },
       { path: "tickets", element: <TicketsPage /> },
       { path: "promocodes", element: <PromocodesPage /> },
+      { path: "promo-offers", element: <PromoOffersPage /> },
       { path: "campaigns", element: <BroadcastsPage /> },
       { path: "health", element: <HealthPage /> },
       { path: "settings", element: <SettingsPage /> },

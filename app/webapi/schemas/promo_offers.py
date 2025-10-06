@@ -82,6 +82,20 @@ class PromoOfferTemplateListResponse(BaseModel):
     items: List[PromoOfferTemplateResponse]
 
 
+class PromoOfferTemplateCreateRequest(BaseModel):
+    name: str
+    offer_type: str
+    message_text: str
+    button_text: str
+    valid_hours: int = Field(..., ge=1)
+    discount_percent: int = Field(0, ge=0)
+    bonus_amount_kopeks: int = Field(0, ge=0)
+    active_discount_hours: Optional[int] = Field(None, ge=1)
+    test_duration_hours: Optional[int] = Field(None, ge=1)
+    test_squad_uuids: Optional[List[str]] = None
+    is_active: Optional[bool] = True
+
+
 class PromoOfferTemplateUpdateRequest(BaseModel):
     name: Optional[str] = None
     message_text: Optional[str] = None
