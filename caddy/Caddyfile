@@ -1,13 +1,16 @@
 # Caddyfile for Remnawave Bedolaga
 
 {$ADMIN_DOMAIN} {
-	encode gzip zstd
-	# Serve built web-admin static files
-	root * /srv/web-admin
-	file_server
+    encode gzip zstd
 
-# Admin UI fetches API under /api prefix (strip /api before proxying)
-handle_path /api/* {
-	reverse_proxy remnawave_bot:8080
-}
+    # API first (strip /api before proxying)
+    handle_path /api/* {
+        reverse_proxy remnawave_bot:8080
+    }
+
+    # Static UI
+    root * /srv/web-admin
+    @spa not path /api/*
+    try_files @spa {path} {path}/ /index.html
+    file_server
 }
