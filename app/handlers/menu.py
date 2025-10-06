@@ -7,7 +7,11 @@ from datetime import datetime
 
 from app.config import settings
 from app.database.crud.user import get_user_by_telegram_id, update_user
-from app.keyboards.inline import get_main_menu_keyboard, get_language_selection_keyboard
+from app.keyboards.inline import (
+    get_main_menu_keyboard,
+    get_language_selection_keyboard,
+    get_info_menu_keyboard,
+)
 from app.localization.texts import get_texts, get_rules
 from app.database.models import User
 from app.database.crud.user_message import get_random_active_message
@@ -17,6 +21,10 @@ from app.services.subscription_checkout_service import (
 )
 from app.utils.photo_message import edit_or_answer_photo
 from app.services.support_settings_service import SupportSettingsService
+from app.utils.promo_offer import (
+    build_promo_offer_hint,
+    build_test_access_hint,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -87,6 +95,26 @@ async def show_service_rules(
         reply_markup=types.InlineKeyboardMarkup(inline_keyboard=[
             [types.InlineKeyboardButton(text=texts.BACK, callback_data="back_to_menu")]
         ])
+    )
+    await callback.answer()
+
+
+async def show_info_menu(
+    callback: types.CallbackQuery,
+    db_user: User,
+    db: AsyncSession,
+):
+    texts = get_texts(db_user.language)
+
+    header = texts.t("MENU_INFO_HEADER", "ℹ️ <b>Инфо</b>")
+    prompt = texts.t("MENU_INFO_PROMPT", "Выберите раздел:")
+    caption = f"{header}\n\n{prompt}" if prompt else header
+
+    await edit_or_answer_photo(
+        callback=callback,
+        caption=caption,
+        keyboard=get_info_menu_keyboard(language=db_user.language),
+        parse_mode="HTML",
     )
     await callback.answer()
 
@@ -300,8 +328,37 @@ async def get_main_menu_text(user, texts, db: AsyncSession):
         user_name=user.full_name,
         subscription_status=_get_subscription_status(user, texts)
     )
-    
+
     action_prompt = texts.t("MAIN_MENU_ACTION_PROMPT", "Выберите действие:")
+
+    info_sections: list[str] = []
+
+    try:
+        promo_hint = await build_promo_offer_hint(db, user, texts)
+        if promo_hint:
+            info_sections.append(promo_hint.strip())
+    except Exception as hint_error:
+        logger.debug(
+            "Не удалось построить подсказку промо-предложения для пользователя %s: %s",
+            getattr(user, "id", None),
+            hint_error,
+        )
+
+    try:
+        test_access_hint = await build_test_access_hint(db, user, texts)
+        if test_access_hint:
+            info_sections.append(test_access_hint.strip())
+    except Exception as test_error:
+        logger.debug(
+            "Не удалось построить подсказку тестового доступа для пользователя %s: %s",
+            getattr(user, "id", None),
+            test_error,
+        )
+
+    if info_sections:
+        extra_block = "\n\n".join(section for section in info_sections if section)
+        if extra_block:
+            base_text = _insert_random_message(base_text, extra_block, action_prompt)
 
     try:
         random_message = await get_random_active_message(db)
@@ -324,6 +381,11 @@ def register_handlers(dp: Dispatcher):
     dp.callback_query.register(
         show_service_rules,
         F.data == "menu_rules"
+    )
+
+    dp.callback_query.register(
+        show_info_menu,
+        F.data == "menu_info",
     )
 
     dp.callback_query.register(
