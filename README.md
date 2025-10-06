@@ -18,7 +18,7 @@
 ```bash
 # Клонируйте репозиторий
 git clone https://github.com/PEDZEO/remnawave-bedolaga-telegram-bot-web-admin
-cd remnawave-bedolaga-telegram-bot
+cd remnawave-bedolaga-telegram-bot-web-admin
 
 # Подготовьте каталоги
 mkdir -p ./logs ./data ./data/backups ./data/referral_qr
