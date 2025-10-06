@@ -96,7 +96,6 @@ services:
     volumes:
       - ./web-admin:/app
       - web_admin_node_modules:/app/node_modules
-      - web_admin_dist:/app/dist
     command: sh -c "npm ci && npx vite build"
     networks:
       - bot_network
@@ -119,7 +118,7 @@ services:
       - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
       - caddy_config:/config
-      - web_admin_dist:/srv/web-admin:ro
+      - ./web-admin/dist:/srv/web-admin:ro
     networks:
       - bot_network
 
@@ -133,8 +132,6 @@ volumes:
   caddy_config:
     driver: local
   web_admin_node_modules:
-    driver: local
-  web_admin_dist:
     driver: local
 
 networks:
