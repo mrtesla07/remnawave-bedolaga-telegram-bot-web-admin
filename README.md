@@ -66,7 +66,7 @@ docker compose up -d
   - UI обращается к бэкенду по `/api` → `remnawave_bot:8080`
 
 ## Полезные команды
-```bash
+   ```bash
 # Статус
 docker compose ps
 
