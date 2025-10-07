@@ -82,11 +82,23 @@ function EventsBridge() {
     let lastKey = "";
     let pollTimer: number | null = null;
 
+    const hasActiveUsersList = (): boolean => {
+      try {
+        const queries = qc.getQueryCache().findAll({
+          predicate: (q) => Array.isArray(q.queryKey) && q.queryKey[0] === "users" && String(q.queryKey[1]) === "list" && q.isActive(),
+        });
+        return queries.length > 0;
+      } catch {
+        return false;
+      }
+    };
+
     const startPolling = () => {
       if (pollTimer) return;
       // Lightweight safety net: periodically refresh active ticket queries
       pollTimer = window.setInterval(() => {
         qc.refetchQueries({ predicate: (q) => Array.isArray(q.queryKey) && q.queryKey[0] === "tickets", type: "active" });
+        // Do not refetch users list by polling; rely on SSE for instant updates
       }, 5000);
     };
 
@@ -98,12 +110,12 @@ function EventsBridge() {
     };
 
     const connect = () => {
-      const { token, apiBaseUrl } = authStore.getState();
+      const { token, apiBaseUrl, jwtToken } = authStore.getState();
       const base = String(apiBaseUrl || defaultApiBaseUrl || "").replace(/\/+$/, "");
-      const apiParam = token || null;
+      const apiParam = jwtToken || token || null;
       if (!apiParam) {
-        // No API token: do not keep SSE/polling; UI will request token
-        stopPolling();
+        // No auth available for SSE: enable gentle polling fallback
+        startPolling();
         return;
       }
       const url = `${base}/notifications/events?api_key=${encodeURIComponent(apiParam)}`;
@@ -118,60 +130,92 @@ function EventsBridge() {
       es.onopen = () => {
         stopPolling();
       };
-      es.onmessage = (ev) => {
-        const data = ev.data || "";
+      // Unified SSE dispatcher: handles default and named events, and JSON payloads with { topic }
+      const dispatchSse = (ev: MessageEvent) => {
+        const raw = ev?.data ?? "";
+        let topic = String(raw || "");
+        try {
+          const parsed = JSON.parse(String(raw));
+          // Accept several common field names for compatibility
+          const candidate = (parsed && (parsed.topic || parsed.event || parsed.type)) as unknown;
+          if (typeof candidate === "string" && candidate.length > 0) topic = candidate;
+        } catch {}
         // simple routing by prefixes
-        if (data.startsWith("ticket.")) {
+        if (topic.startsWith("ticket.")) {
           // Invalidate any query whose key starts with ["tickets", ...]
           qc.invalidateQueries({ predicate: (q) => Array.isArray(q.queryKey) && q.queryKey[0] === "tickets" });
           qc.refetchQueries({ predicate: (q) => Array.isArray(q.queryKey) && q.queryKey[0] === "tickets", type: "active" });
         }
         if (
-          data.startsWith("ticket.message:") ||
-          data.startsWith("ticket.status:") ||
-          data.startsWith("ticket.priority:") ||
-          data.startsWith("ticket.block:")
+          topic.startsWith("ticket.message:") ||
+          topic.startsWith("ticket.status:") ||
+          topic.startsWith("ticket.priority:") ||
+          topic.startsWith("ticket.block:")
         ) {
-          const id = Number(data.split(":")[1]);
+          const id = Number(topic.split(":")[1]);
           if (id) {
             qc.invalidateQueries({ queryKey: ["tickets", "detail", id] });
             qc.refetchQueries({ queryKey: ["tickets", "detail", id], type: "active" });
           }
         }
-        if (data.startsWith("transactions.")) {
+        if (topic.startsWith("transactions.")) {
           qc.invalidateQueries({ queryKey: ["finance", "transactions"] });
         }
-        if (data.startsWith("users.")) {
+        if (topic.startsWith("users.") || topic.startsWith("user.")) {
           qc.invalidateQueries({ queryKey: ["users"] });
           qc.invalidateQueries({ queryKey: ["users", "list"] });
+          // Force immediate refresh of active user lists only (no full page reload)
+          queueMicrotask(() => {
+            qc.refetchQueries({ predicate: (q) => Array.isArray(q.queryKey) && q.queryKey[0] === "users" && String(q.queryKey[1]) === "list", type: "active" });
+          });
         }
-        if (data.startsWith("subscriptions.")) {
+        if (topic.startsWith("subscriptions.") || topic.startsWith("subscription.")) {
           qc.invalidateQueries({ queryKey: ["subscriptions", "list"] });
+          queueMicrotask(() => {
+            qc.refetchQueries({
+              predicate: (q) => Array.isArray(q.queryKey) && q.queryKey[0] === "subscriptions" && String(q.queryKey[1]) === "list",
+              type: "active",
+            });
+          });
         }
-        if (data.startsWith("promo_groups.")) {
+        if (topic.startsWith("promo_groups.")) {
           qc.invalidateQueries({ queryKey: ["promo-groups", "list"] });
         }
-        if (data.startsWith("promocodes.")) {
+        if (topic.startsWith("promocodes.")) {
           qc.invalidateQueries({ queryKey: ["promocodes", "list"] });
         }
-        if (data.startsWith("tokens.")) {
+        if (topic.startsWith("tokens.")) {
           qc.invalidateQueries({ queryKey: ["tokens"] });
         }
-        if (data.startsWith("settings.")) {
+        if (topic.startsWith("settings.")) {
           qc.invalidateQueries({ queryKey: ["settings"] });
           qc.invalidateQueries({ predicate: (q) => Array.isArray(q.queryKey) && q.queryKey[0] === "settings" });
         }
-        if (data.startsWith("broadcasts.")) {
+        if (topic.startsWith("broadcasts.")) {
           qc.invalidateQueries({ queryKey: ["broadcasts", "list"] });
         }
       };
+      es.onmessage = dispatchSse;
+      // Also listen to named events that some servers emit
+      try {
+        [
+          "users.created",
+          "user.created",
+          "users.updated",
+          "user.updated",
+          "subscriptions.created",
+          "subscription.created",
+          "subscriptions.updated",
+          "subscription.updated",
+        ].forEach((evt) => es && es.addEventListener(evt, dispatchSse as any));
+      } catch {}
       es.onerror = () => {
         // Browser auto-reconnects; enable polling as a fallback while disconnected
         startPolling();
       };
     };
 
-    // Initial connect (may no-op if token not ready yet)
+    // Initial connect (works with jwtToken or API token)
     connect();
     // Subscribe to auth store changes to reconnect when token/base changes
     const unsub = authStore.subscribe((state) => {

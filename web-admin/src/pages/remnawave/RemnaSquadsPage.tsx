@@ -66,7 +66,7 @@ export default function RemnaSquadsPage() {
 
   return (
     <div className="space-y-6">
-      <section className="card p-6">
+      <section className="p-6">
         <h1 className="text-xl font-semibold">Сквады</h1>
         <p className="text-sm text-textMuted">Управление сквадами и их inbound-ами</p>
 

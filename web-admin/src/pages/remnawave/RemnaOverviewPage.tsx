@@ -120,7 +120,7 @@ export default function RemnaOverviewPage() {
 
   return (
     <div className="space-y-8">
-      <section className="card p-6">
+      <section className="p-6">
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-xl font-semibold">RemnaWave · Обзор</h1>

@@ -165,7 +165,7 @@ export default function BroadcastsPage() {
 
   return (
     <div className="space-y-8">
-      <section className="card p-6">
+      <section className="p-6">
         <h1 className="text-xl font-semibold">Рассылки</h1>
         <p className="text-sm text-textMuted">Создание и управление рассылками бота</p>
 
@@ -332,7 +332,7 @@ export default function BroadcastsPage() {
         </div>
       </section>
 
-      <section className="card p-6">
+      <section className="p-6">
         <h2 className="text-sm font-semibold">Подсказки</h2>
         <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-textMuted">
           <li>Используйте File ID из Telegram для фото, видео и документов</li>

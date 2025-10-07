@@ -16,6 +16,14 @@
   --brand-end: 61 201 255;        /* #3dc9ff */
   --ring: 110 89 245;             /* focus ring color */
   color-scheme: light;
+
+  /* Sprite/particles tokens (light) */
+  --sprite-opacity: 0.72;
+  --sprite-stroke-rgb: 148 163 184;   /* slate-400 */
+  --sprite-tip-stroke-rgb: 180 83 9;  /* orange-700 */
+  --sprite-shadow: 0 1px 2px rgba(2, 6, 23, 0.25);
+  --particle-opacity: 0.30;
+  --vignette-alpha: 0.04;            /* light-only subtle vignette */
 }
 
 html.dark {
@@ -32,6 +40,14 @@ html.dark {
   --brand-end: 61 201 255;        /* #3dc9ff */
   --ring: 77 102 245;             /* a bit cooler on dark */
   color-scheme: dark;
+
+  /* Sprite/particles tokens (dark) */
+  --sprite-opacity: 0.40;
+  --sprite-stroke-rgb: 71 85 105;     /* slate-600 */
+  --sprite-tip-stroke-rgb: 194 65 12; /* orange-600 */
+  --sprite-shadow: 0 1px 1px rgba(0, 0, 0, 0.15);
+  --particle-opacity: 0.22;
+  --vignette-alpha: 0; /* disabled; we also hide via dark:hidden */
 }
 
 body {
@@ -75,10 +91,11 @@ a:focus-visible,
 }
 
 /* Lift and accent for cards on hover */
+/* Disable card hover lift to avoid double highlight with window-frame */
 .card:hover {
-  transform: translateY(-1px);
-  border-color: rgba(var(--brand-start), 0.30);
-  box-shadow: 0 18px 32px rgba(2, 6, 23, 0.10), 0 4px 10px rgba(2, 6, 23, 0.06);
+  transform: none;
+  border-color: rgb(var(--outline) / 0.40);
+  box-shadow: none;
 }
 
 /* Buttons: refined primary gradient and active feedback */
@@ -246,5 +263,31 @@ a:focus-visible,
 .animate-shimmer {
   background-size: 200% auto;
   animation: shimmer 6s linear infinite;
+}
+
+/* Window frame (page container) hover animation, same feel as .card */
+.window-frame {
+  border: 1px solid transparent;
+  transition: transform 180ms ease, border-color 180ms ease, box-shadow 220ms ease, background-color 180ms ease;
+}
+.window-frame:hover {
+  transform: translateY(-1px);
+  border-color: rgba(var(--brand-start), 0.30);
+  box-shadow: 0 18px 32px rgba(2, 6, 23, 0.10), 0 4px 10px rgba(2, 6, 23, 0.06);
+  background-color: rgb(var(--surface) / 0.95);
+}
+
+/* Sprite helpers using tokens */
+.sprite {
+  opacity: var(--sprite-opacity);
+  filter: drop-shadow(var(--sprite-shadow));
+}
+.sprite-body {
+  stroke: rgb(var(--sprite-stroke-rgb));
+  stroke-width: 0.6;
+}
+.sprite-tip {
+  stroke: rgb(var(--sprite-tip-stroke-rgb));
+  stroke-width: 0.4;
 }
 

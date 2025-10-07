@@ -58,7 +58,7 @@ export default function LogsPage() {
 
   return (
     <div className="space-y-6">
-      <section className="card p-6">
+      <section className="p-6">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <h1 className="text-xl font-semibold">Логи</h1>

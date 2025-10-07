@@ -18,7 +18,7 @@ export default function RemnaInboundsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="card p-6">
+      <div className="p-6">
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-xl font-semibold">Inbounds</h1>

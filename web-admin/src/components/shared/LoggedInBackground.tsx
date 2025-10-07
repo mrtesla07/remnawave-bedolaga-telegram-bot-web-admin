@@ -7,6 +7,8 @@ export const LoggedInBackground = memo(function LoggedInBackground() {
       <div className="pointer-events-none absolute inset-0 z-0 overflow-hidden">
       {/* Brand radial gradients (purple + cyan) */}
       <div className="absolute inset-0 bg-[radial-gradient(1200px_600px_at_15%_-10%,rgba(110,89,245,0.22),transparent_60%),radial-gradient(900px_520px_at_85%_5%,rgba(61,201,255,0.14),transparent_60%),radial-gradient(1000px_620px_at_50%_115%,rgba(110,89,245,0.12),transparent_60%)] animate-bgFloat" />
+      {/* Light-only subtle vignette for readability */}
+      <div className="absolute inset-0 dark:hidden" style={{ background: "radial-gradient(1000px 650px at 50% 50%, rgb(2 6 23 / var(--vignette-alpha)), transparent 65%)" }} />
 
       {/* Blurred moving blobs for depth */}
       <div className="absolute -top-24 -left-24 h-[60vmin] w-[60vmin] rounded-full bg-[#6e59f5] opacity-[0.16] blur-3xl animate-blob" />
@@ -18,7 +20,7 @@ export const LoggedInBackground = memo(function LoggedInBackground() {
         {Array.from({ length: 28 }).map((_, i) => (
           <span
             key={i}
-            className="absolute block h-[2px] w-[2px] rounded-full bg-white/20 shadow-[0_0_8px_rgba(110,89,245,0.35)] animate-pulseSoft"
+            className={`absolute block h-[2px] w-[2px] rounded-full bg-white/30 dark:bg-white/20 shadow-[0_0_8px_rgba(110,89,245,0.35)] animate-pulseSoft ${i % 2 === 1 ? 'hidden sm:block' : ''}`}
             style={{
               left: `${(i * 137) % 100}%`,
               top: `${(i * 83) % 100}%`,
@@ -59,10 +61,10 @@ export const LoggedInBackground = memo(function LoggedInBackground() {
             >
               <div className="relative">
                 <div className="animate-drift">
-                  <svg width="34" height="34" viewBox="0 0 34 34" fill="none" xmlns="http://www.w3.org/2000/svg" className="opacity-30">
+                  <svg width="34" height="34" viewBox="0 0 34 34" fill="none" xmlns="http://www.w3.org/2000/svg" className="sprite">
                     <g transform="translate(2,2)">
-                      <rect x="7" y="2" width="6" height="6" rx="1" fill="#2d5016" />
-                      <rect x="5" y="7" width="10" height="16" rx="2" fill="url(#bottleGlass)" />
+                      <rect x="7" y="2" width="6" height="6" rx="1" fill="#2d5016" className="sprite-body" />
+                      <rect x="5" y="7" width="10" height="16" rx="2" fill="url(#bottleGlass)" className="sprite-body" />
                       <rect x="6.5" y="12" width="7" height="5" rx="1" fill="white" opacity="0.18" />
                       <rect x="7.5" y="22" width="6" height="3" rx="1" fill="#1b2a10" opacity="0.25" />
                     </g>
@@ -94,9 +96,9 @@ export const LoggedInBackground = memo(function LoggedInBackground() {
               }}
             >
               <div className="animate-drift">
-                <svg width="40" height="16" viewBox="0 0 40 16" fill="none" xmlns="http://www.w3.org/2000/svg" className="opacity-40">
-                  <rect x="2" y="6" width="30" height="4" rx="2" fill="white" />
-                  <rect x="32" y="6" width="6" height="4" rx="2" fill="#ff6b35" />
+                <svg width="40" height="16" viewBox="0 0 40 16" fill="none" xmlns="http://www.w3.org/2000/svg" className="sprite">
+                  <rect x="2" y="6" width="30" height="4" rx="2" fill="white" className="sprite-body" />
+                  <rect x="32" y="6" width="6" height="4" rx="2" fill="#ff6b35" className="sprite-tip" />
                   <g opacity="0.5">
                     <circle cx="38" cy="4" r="1.2" fill="#9aa3b1" />
                     <circle cx="38" cy="3" r="0.8" fill="#b1bac7" />
@@ -112,7 +114,7 @@ export const LoggedInBackground = memo(function LoggedInBackground() {
       {/* Clickable footer credit (outside pointer-events-none) */}
       <div className="pointer-events-auto absolute bottom-2 left-1/2 -translate-x-1/2 z-10">
         <a
-          href="https://github.com/PEDZEO"
+          href="https://t.me/pedzeo"
           target="_blank"
           rel="noopener noreferrer"
           className="block rounded-full px-2 py-1 text-[11px] sm:text-xs font-semibold tracking-wide"

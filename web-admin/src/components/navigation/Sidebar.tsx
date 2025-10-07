@@ -77,7 +77,7 @@ interface SidebarLinkProps {
 
 function SidebarLink({ item, isActive, disabled, fallbackPath }: SidebarLinkProps) {
   const className = clsx(
-    "group flex items-center justify-between rounded-xl px-3 py-2.5 transition",
+    "group flex w-full items-center justify-between rounded-xl px-3 py-2.5 transition",
     disabled && "cursor-not-allowed opacity-70",
     isActive
       ? "bg-gradient-to-r from-primary/80 via-primary/60 to-sky/40 text-white shadow-card"

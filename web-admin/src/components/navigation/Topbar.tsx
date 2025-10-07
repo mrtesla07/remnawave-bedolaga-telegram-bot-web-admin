@@ -266,7 +266,9 @@ export function Topbar({ onOpenTokenDialog }: TopbarProps) {
           )}
           {health?.ok ? `бот активен${health?.version ? ` · ${health.version}` : ''}` : "проверка..."}
         </div>
-        <div className="relative" ref={bellRef}>
+        <div className="relative" ref={bellRef}
+             onMouseEnter={() => { try { window.dispatchEvent(new CustomEvent("bedolaga-dim-bg-on")); } catch {} }}
+             onMouseLeave={() => { try { window.dispatchEvent(new CustomEvent("bedolaga-dim-bg-off")); } catch {} }}>
           <button className="relative flex h-10 w-10 items-center justify-center rounded-xl border border-outline/40 bg-surfaceMuted/60 text-textMuted transition hover:border-outline hover:text-slate-100" onClick={() => setNotifOpen((v) => !v)}>
             <Bell className="h-4 w-4" />
             {unreadCount > 0 ? (
@@ -337,7 +339,9 @@ export function Topbar({ onOpenTokenDialog }: TopbarProps) {
           <KeyRound className="h-4 w-4" />
           <span className="sr-only">Настроить API токен</span>
         </button>
-        <div className="relative" ref={profileRef}>
+        <div className="relative" ref={profileRef}
+             onMouseEnter={() => { try { window.dispatchEvent(new CustomEvent("bedolaga-dim-bg-on")); } catch {} }}
+             onMouseLeave={() => { try { window.dispatchEvent(new CustomEvent("bedolaga-dim-bg-off")); } catch {} }}>
           <button className="flex items-center gap-3 rounded-full border border-outline/40 bg-surfaceMuted/60 px-3 py-2 text-sm font-medium text-slate-100 transition hover:border-outline" onClick={() => setProfileOpen((v) => !v)}>
             <CircleUser className="h-7 w-7 text-primary animate-blob" />
             <div className="hidden text-left md:block">

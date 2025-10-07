@@ -67,6 +67,15 @@ async def create_trial_subscription(
     await db.refresh(subscription)
     
     logger.info(f"🎁 Создана триальная подписка для пользователя {user_id}")
+    try:
+        from app.webapi.routes.notifications import broker as sse_broker  # type: ignore
+    except Exception:
+        sse_broker = None  # type: ignore
+    try:
+        if sse_broker is not None:
+            await sse_broker.publish("subscriptions.update")
+    except Exception:
+        pass
     return subscription
 
 
@@ -97,6 +106,15 @@ async def create_paid_subscription(
     await db.refresh(subscription)
     
     logger.info(f"💎 Создана платная подписка для пользователя {user_id}")
+    try:
+        from app.webapi.routes.notifications import broker as sse_broker  # type: ignore
+    except Exception:
+        sse_broker = None  # type: ignore
+    try:
+        if sse_broker is not None:
+            await sse_broker.publish("subscriptions.update")
+    except Exception:
+        pass
     return subscription
 
 
@@ -1014,4 +1032,13 @@ async def create_subscription(
     await db.refresh(subscription)
     
     logger.info(f"✅ Создана подписка для пользователя {user_id}")
+    try:
+        from app.webapi.routes.notifications import broker as sse_broker  # type: ignore
+    except Exception:
+        sse_broker = None  # type: ignore
+    try:
+        if sse_broker is not None:
+            await sse_broker.publish("subscriptions.update")
+    except Exception:
+        pass
     return subscription

@@ -25,11 +25,11 @@ export function TokensPage() {
       </header>
 
       <div className="rounded-2xl border border-outline/40 bg-surfaceMuted/40 p-4">
-        <h2 className="text-sm font-semibold text-white/80">Создать ключ</h2>
+        <h2 className="text-sm font-semibold text-text">Создать ключ</h2>
         <div className="mt-3 grid gap-3 sm:grid-cols-[1fr_2fr_auto]">
           <input className="rounded-xl border border-outline/40 bg-background/70 px-3 py-2 text-sm text-slate-100" placeholder="Название" value={name} onChange={(e) => setName(e.target.value)} />
           <input className="rounded-xl border border-outline/40 bg-background/70 px-3 py-2 text-sm text-slate-100" placeholder="Описание (необязательно)" value={description} onChange={(e) => setDescription(e.target.value)} />
-          <button className="inline-flex items-center gap-2 rounded-xl bg-primary/20 px-3 py-2 text-sm font-semibold text-primary hover:bg-primary/30" onClick={() => name && createMut.mutate({ name, description })}>
+          <button className="button-primary" onClick={() => name && createMut.mutate({ name, description })}>
             <Plus className="h-4 w-4" /> Создать
           </button>
         </div>

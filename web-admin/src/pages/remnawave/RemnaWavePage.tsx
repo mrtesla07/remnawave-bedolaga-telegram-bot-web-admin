@@ -19,7 +19,7 @@ export default function RemnaWavePage() {
 
   return (
     <div className="space-y-6">
-      <div className="card p-4">
+      <div className="p-4">
         <div className="flex flex-wrap gap-2">
           {TABS.map((t) => (
             <button

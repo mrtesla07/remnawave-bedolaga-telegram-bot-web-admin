@@ -21,7 +21,7 @@ export default function RemnaSyncPage() {
 
   return (
     <div className="space-y-6">
-      <section className="card p-6">
+      <section className="p-6">
         <h1 className="text-xl font-semibold">RemnaWave · Синхронизация</h1>
         <p className="text-sm text-textMuted">Сервисные операции синхронизации пользователей и подписок</p>
 

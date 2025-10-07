@@ -132,7 +132,7 @@ const primaryServer = servers[0] ?? null;
 
       <QuickActions actions={mockQuickActions} />
 
-      <section className="card glow-border overflow-hidden rounded-3xl border border-outline/50 bg-surface/70 p-6">
+      <section className="overflow-hidden p-6">
         <header className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p className="text-xs uppercase tracking-[0.32em] text-textMuted/70">RemnaWave</p>

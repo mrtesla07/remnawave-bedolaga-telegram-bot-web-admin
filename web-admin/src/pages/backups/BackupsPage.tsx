@@ -119,7 +119,7 @@ export default function BackupsPage() {
 
   return (
     <div className="space-y-6">
-      <section className="card p-6">
+      <section className="p-6">
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-xl font-semibold">Резервные копии</h1>

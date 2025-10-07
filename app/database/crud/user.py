@@ -26,6 +26,17 @@ try:
     from app.webapi.routes.notifications import broker as sse_broker  # type: ignore
 except Exception:  # pragma: no cover
     sse_broker = None  # type: ignore
+
+def _resolve_sse_broker():  # lazy resolver to avoid import-time ordering issues
+    global sse_broker
+    if sse_broker is not None:
+        return sse_broker
+    try:
+        from app.webapi.routes.notifications import broker as _broker  # type: ignore
+        sse_broker = _broker
+    except Exception:
+        sse_broker = None  # type: ignore
+    return sse_broker
 from app.utils.validators import sanitize_telegram_name
 
 logger = logging.getLogger(__name__)
@@ -174,6 +185,14 @@ async def create_user(
                 referral_code,
             )
 
+            # Notify SSE subscribers about new/updated users list
+            try:
+                broker = _resolve_sse_broker()
+                if broker is not None:
+                    await broker.publish("users.update")
+            except Exception:
+                pass
+
             return user
 
         except IntegrityError as exc:
@@ -246,8 +265,9 @@ async def add_user_balance(
         await db.commit()
         await db.refresh(user)
         try:
-            if sse_broker is not None:
-                await sse_broker.publish("users.update")
+            broker = _resolve_sse_broker()
+            if broker is not None:
+                await broker.publish("users.update")
         except Exception:
             pass
         
@@ -350,8 +370,9 @@ async def subtract_user_balance(
         await db.commit()
         await db.refresh(user)
         try:
-            if sse_broker is not None:
-                await sse_broker.publish("users.update")
+            broker = _resolve_sse_broker()
+            if broker is not None:
+                await broker.publish("users.update")
         except Exception:
             pass
 

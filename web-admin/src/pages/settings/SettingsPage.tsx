@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, cloneElement } from "react";
 import { useResetSetting, useSettingCategories, useSettings, useUpdateSetting } from "@/features/settings/queries";
 import { Check, Layers3, Puzzle, RefreshCw, Search, Settings, Sliders, ToggleLeft, ToggleRight, Info } from "lucide-react";
 
@@ -42,13 +42,19 @@ export function SettingsPage() {
       </header>
 
       <div className="flex flex-col gap-4 sm:flex-row">
-        <aside className="w-full sm:w-64">
+        <aside className="w-full sm:w-64"
+               onMouseEnter={() => { try { window.dispatchEvent(new CustomEvent("bedolaga-dim-bg-on")); } catch {} }}
+               onMouseLeave={() => { try { window.dispatchEvent(new CustomEvent("bedolaga-dim-bg-off")); } catch {} }}>
           <div className="rounded-3xl border border-outline/40 bg-surfaceMuted/40 p-3">
             <div className="mb-3 grid grid-cols-3 gap-2">
               {sections.map((s) => (
                 <button
                   key={s.key}
-                  className={`rounded-xl px-2 py-2 text-center text-[11px] font-semibold uppercase tracking-wide ${activeGroup === s.key ? "bg-surface/60 text-white" : "text-textMuted hover:text-slate-100"}`}
+                  className={`w-full rounded-xl px-2 py-2 text-center text-[11px] font-semibold uppercase tracking-wide ${
+                    activeGroup === s.key
+                      ? "col-span-3 -mx-2 bg-gradient-to-r from-primary/80 via-primary/60 to-sky/40 text-white shadow-card"
+                      : "text-textMuted hover:text-slate-100 hover:bg-surfaceMuted/60"
+                  }`}
                   onClick={() => {
                     setActiveGroup(s.key);
                     setSelectedCategory(undefined);
@@ -56,7 +62,9 @@ export function SettingsPage() {
                   title={s.label}
                 >
                   <div className="flex items-center justify-center gap-2">
-                    {s.icon}
+                    {cloneElement(s.icon as any, {
+                      className: `h-4 w-4 ${activeGroup === s.key ? "text-white" : "text-textMuted/80 group-hover:text-slate-200"}`,
+                    })}
                     <span className="hidden sm:inline">{s.label}</span>
                   </div>
                 </button>
@@ -72,7 +80,11 @@ export function SettingsPage() {
               />
             </div>
             <button
-              className={`w-full rounded-xl px-3 py-2 text-left text-sm ${!selectedCategory ? "bg-surface/50 text-white" : "text-textMuted hover:text-slate-100"}`}
+              className={`w-full rounded-xl px-3 py-2 text-left text-sm ${
+                !selectedCategory
+                  ? "bg-gradient-to-r from-primary/80 via-primary/60 to-sky/40 text-white shadow-card"
+                  : "text-textMuted hover:text-slate-100"
+              }`}
               onClick={() => setSelectedCategory(undefined)}
             >
               Все категории
@@ -86,12 +98,18 @@ export function SettingsPage() {
                 {section.categories.map((cat) => (
                   <button
                     key={cat.key}
-                    className={`mt-1 w-full rounded-xl px-3 py-2 text-left text-sm ${selectedCategory === cat.key ? "bg-surface/50 text-white" : "text-textMuted hover:text-slate-100"}`}
+                    className={`mt-1 w-full rounded-xl px-3 py-2 text-left text-sm ${
+                      selectedCategory === cat.key
+                        ? "bg-gradient-to-r from-primary/80 via-primary/60 to-sky/40 text-white shadow-card"
+                        : "text-textMuted hover:bg-surfaceMuted/60"
+                    }`}
                     onClick={() => setSelectedCategory(cat.key)}
                   >
                     <span className="inline-flex items-center gap-2">
                       <span>{getCategoryLabelRu(cat.key, cat.label)}</span>
-                      <span className="rounded-full bg-surface/60 px-2 py-0.5 text-[10px] text-textMuted">{cat.items}</span>
+                      <span className={`rounded-full px-2 py-0.5 text-[10px] ${
+                        selectedCategory === cat.key ? "bg-primary/30 text-slate-200" : "bg-surface/60 text-textMuted"
+                      }`}>{cat.items}</span>
                     </span>
                   </button>
                 ))}
