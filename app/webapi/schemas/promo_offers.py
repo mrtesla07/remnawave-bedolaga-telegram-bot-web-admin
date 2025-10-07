@@ -83,6 +83,27 @@ class PromoOfferTemplateListResponse(BaseModel):
     items: List[PromoOfferTemplateResponse]
 
 
+class PromoOfferBulkSendRequest(BaseModel):
+    segment: str = Field(..., description="trial_active | trial_expired | paid_active")
+    template_id: int
+    limit: int = Field(200, ge=1, le=2000)
+    discount_percent: Optional[int] = Field(None, ge=0)
+    valid_hours: Optional[int] = Field(None, ge=1)
+    send_notification: bool = True
+    test_squad_uuids: Optional[List[str]] = Field(None, description="Override squads for test_access offers")
+    test_duration_hours: Optional[int] = Field(None, ge=1, description="Override test duration for test_access offers")
+    media_file_id: Optional[str] = Field(None, description="Telegram file_id for attached media")
+    media_type: Optional[str] = Field(None, description="photo | video | document")
+
+
+class PromoOfferBulkSendResponse(BaseModel):
+    total_candidates: int
+    processed: int
+    created: int
+    sent: int
+    failed: int
+
+
 class PromoOfferTemplateCreateRequest(BaseModel):
     name: str
     offer_type: str

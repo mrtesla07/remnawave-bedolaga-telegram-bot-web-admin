@@ -191,6 +191,17 @@ export async function fetchPromoOfferLogs(params: PromoOfferLogsQuery = {}): Pro
   };
 }
 
+export async function clearPromoOfferLogs(params: PromoOfferLogsQuery = {}): Promise<void> {
+  await apiClient.delete("/promo-offers/logs", {
+    params: {
+      user_id: params.user_id,
+      offer_id: params.offer_id,
+      action: params.action,
+      source: params.source,
+    },
+  });
+}
+
 export interface PromoOfferTemplateDto {
   id: number;
   name: string;
@@ -224,8 +235,60 @@ export async function createPromoOfferTemplate(payload: Partial<PromoOfferTempla
   return data;
 }
 
+export async function deletePromoOfferTemplate(id: number): Promise<void> {
+  await apiClient.delete(`/promo-offers/templates/${id}`);
+}
+
+export interface PromoOfferBulkSendRequest {
+  segment: "trial_active" | "trial_expired" | "paid_active";
+  template_id: number;
+  limit?: number;
+  discount_percent?: number;
+  valid_hours?: number;
+  send_notification?: boolean;
+  test_squad_uuids?: string[];
+  test_duration_hours?: number;
+  media_file_id?: string;
+  media_type?: "photo" | "video" | "document";
+}
+
+export interface PromoOfferBulkSendResponse {
+  total_candidates: number;
+  processed: number;
+  created: number;
+  sent: number;
+  failed: number;
+}
+
+export async function bulkSendPromoOffers(payload: PromoOfferBulkSendRequest): Promise<PromoOfferBulkSendResponse> {
+  const { data } = await apiClient.post<PromoOfferBulkSendResponse>("/promo-offers/bulk-send", payload);
+  return data;
+}
+
+export interface RemnaWaveSquad {
+  uuid: string;
+  name: string;
+  members_count: number;
+  inbounds_count: number;
+}
+
+export async function fetchRemnaWaveSquads(): Promise<RemnaWaveSquad[]> {
+  const { data } = await apiClient.get<{ items: RemnaWaveSquad[]; total: number }>("/remnawave/squads");
+  return data.items || [];
+}
+
 export async function deletePromoOffer(id: number): Promise<void> {
   await apiClient.delete(`/promo-offers/${id}`);
+}
+
+export async function fetchPromoOffer(id: number): Promise<PromoOffer> {
+  const { data } = await apiClient.get<PromoOfferDto>(`/promo-offers/${id}`);
+  return mapDto(data);
+}
+
+export async function activatePromoOffer(id: number): Promise<PromoOffer> {
+  const { data } = await apiClient.post<PromoOfferDto>(`/promo-offers/${id}/activate`);
+  return mapDto(data);
 }
 
 export function toKopeks(rubles: number | undefined): number {

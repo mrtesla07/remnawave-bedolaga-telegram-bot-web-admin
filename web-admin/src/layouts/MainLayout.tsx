@@ -47,7 +47,7 @@ export function MainLayout() {
 
   if (requireToken) {
     return (
-      <div className="relative flex min-h-screen bg-background text-slate-100">
+      <div className="relative flex min-h-screen bg-background text-text">
         <LoggedInBackground />
         <TokenDialog open={true} onClose={() => {}} />
       </div>
@@ -59,7 +59,7 @@ export function MainLayout() {
   }
 
   return (
-    <div className="relative flex min-h-screen bg-background text-slate-100">
+    <div className="relative flex min-h-screen bg-background text-text">
       <LoggedInBackground />
       <Sidebar />
       <div className="flex flex-1 flex-col">

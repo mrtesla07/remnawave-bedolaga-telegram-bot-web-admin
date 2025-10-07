@@ -14,7 +14,16 @@ export function Topbar({ onOpenTokenDialog }: TopbarProps) {
   const setUsername = useAuthStore((s) => s.setUsername);
   const navigate = useNavigate();
   const location = useLocation();
-  const [dark, setDark] = useState(true);
+  const [dark, setDark] = useState(() => {
+    try {
+      const stored = window.localStorage.getItem("bedolaga-theme");
+      if (stored === "dark") return true;
+      if (stored === "light") return false;
+      return window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
+    } catch {
+      return false;
+    }
+  });
   const [health, setHealth] = useState<{ ok: boolean; version?: string } | null>(null);
   const [loadingHealth, setLoadingHealth] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
@@ -107,22 +116,13 @@ export function Topbar({ onOpenTokenDialog }: TopbarProps) {
     else root.classList.remove("dark");
   }, []);
 
-  useEffect(() => {
-    const stored = window.localStorage.getItem("bedolaga-theme");
-    if (stored === "dark" || stored === "light") {
-      const isDark = stored === "dark";
-      setDark(isDark);
-      updateDarkClass(isDark);
-      return;
-    }
-    const prefersDark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
-    setDark(prefersDark);
-    updateDarkClass(prefersDark);
-  }, [updateDarkClass]);
+  // Initial state is derived synchronously from localStorage or system; no need to re-derive on mount
 
   useEffect(() => {
-    updateDarkClass(dark);
-    window.localStorage.setItem("bedolaga-theme", dark ? "dark" : "light");
+    try {
+      updateDarkClass(dark);
+      window.localStorage.setItem("bedolaga-theme", dark ? "dark" : "light");
+    } catch {}
   }, [dark, updateDarkClass]);
 
   const loadNotifications = useCallback(
