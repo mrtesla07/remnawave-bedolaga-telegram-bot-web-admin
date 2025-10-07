@@ -1,4 +1,4 @@
-﻿import axios from "axios";
+﻿import axios, { AxiosHeaders } from "axios";
 import { defaultApiBaseUrl, defaultRequestTimeout } from "@/lib/config";
 import { authStore } from "@/store/auth-store";
 
@@ -31,7 +31,7 @@ function forceLogout() {
 apiClient.interceptors.request.use((config) => {
   const { token, jwtToken, apiBaseUrl } = authStore.getState();
   config.baseURL = normalizeBaseUrl(apiBaseUrl || defaultApiBaseUrl);
-  const headers = { ...(config.headers || {}) } as Record<string, string>;
+  const headers = AxiosHeaders.from(config.headers || {});
   const rawUrl = String(config.url || "");
   let isAuthPath = false;
   try {
@@ -42,12 +42,12 @@ apiClient.interceptors.request.use((config) => {
     isAuthPath = rawUrl.startsWith("/auth") || rawUrl.startsWith("auth/");
   }
   // Prefer Bearer JWT for all endpoints if available; fall back to legacy X-API-Key
-  const hasAuthHeader = !!(headers as any).Authorization;
+  const hasAuthHeader = headers.has("Authorization");
   if (!hasAuthHeader && jwtToken) {
-    headers.Authorization = `Bearer ${jwtToken}`;
+    headers.set("Authorization", `Bearer ${jwtToken}`);
   }
-  if (!jwtToken && token) headers["X-API-Key"] = token;
-  headers["X-Requested-With"] = "BedolagaAdminUI";
+  if (!jwtToken && token) headers.set("X-API-Key", token);
+  headers.set("X-Requested-With", "BedolagaAdminUI");
   config.headers = headers;
   return config;
 });

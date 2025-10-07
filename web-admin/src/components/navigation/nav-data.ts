@@ -10,6 +10,7 @@ import {
   Server,
   Megaphone,
   KeyRound,
+  Zap,
   Settings,
   Database,
   Shield,
@@ -33,9 +34,9 @@ export type NavSection = {
 
 export const NAV_SECTIONS: NavSection[] = [
   {
-    title: "Аналитика",
+    title: "Обзор",
     items: [
-      { label: "Дашборд", to: "/", icon: LayoutDashboard },
+      { label: "Главная", to: "/", icon: LayoutDashboard },
       { label: "Финансы", to: "/finance", icon: Wallet },
       { label: "Статистика", to: "/statistics", icon: BarChart3 },
     ],
@@ -47,8 +48,9 @@ export const NAV_SECTIONS: NavSection[] = [
       { label: "Подписки", to: "/subscriptions", icon: CreditCard },
       { label: "Промокоды", to: "/promocodes", icon: Gift },
       { label: "Промо-предложения", to: "/promo-offers", icon: Radio, badge: "new" },
-      { label: "Тикеты", to: "/tickets", icon: Ticket },
-      { label: "Рассылки", to: "/campaigns", icon: Megaphone, badge: "beta" },
+      { label: "Тестовые доступы", to: "/promo-offers/test-access", icon: Zap, badge: "new" },
+      { label: "Заявки", to: "/tickets", icon: Ticket },
+      { label: "Кампании", to: "/campaigns", icon: Megaphone, badge: "beta" },
     ],
   },
   {
@@ -56,7 +58,7 @@ export const NAV_SECTIONS: NavSection[] = [
     items: [
       { label: "RemnaWave", to: "/remnawave", icon: Server },
       { label: "Логи", to: "/logs", icon: ScrollText },
-      { label: "API ключи", to: "/tokens", icon: KeyRound },
+      { label: "API токены", to: "/tokens", icon: KeyRound },
       { label: "Настройки", to: "/settings", icon: Settings },
       { label: "Резервные копии", to: "/backups", icon: Database },
       { label: "Безопасность", to: "/security", icon: Shield },
@@ -64,3 +66,4 @@ export const NAV_SECTIONS: NavSection[] = [
     ],
   },
 ];
+

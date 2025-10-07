@@ -131,6 +131,117 @@ class PromoOfferService:
 
         return True, newly_added, expires_at, "ok"
 
+    async def deactivate_test_access(
+        self,
+        db: AsyncSession,
+        access: SubscriptionTemporaryAccess,
+        *,
+        reason: str = "manual_disable",
+    ) -> bool:
+        if not access.is_active:
+            return False
+
+        now = datetime.utcnow()
+        access.is_active = False
+        access.deactivated_at = now
+
+        subscription = access.subscription
+        original_connected: Optional[List[str]] = None
+        if subscription and not access.was_already_connected:
+            connected = set(subscription.connected_squads or [])
+            if access.squad_uuid in connected:
+                original_connected = list(connected)
+                connected.discard(access.squad_uuid)
+                subscription.connected_squads = list(connected)
+                subscription.updated_at = now
+                try:
+                    await self.subscription_service.update_remnawave_user(db, subscription)
+                except Exception:
+                    await db.rollback()
+                    if original_connected is not None:
+                        subscription.connected_squads = original_connected
+                    raise
+
+        await db.commit()
+        await db.refresh(access)
+
+        offer = access.offer
+        if offer and offer.user_id:
+            try:
+                await log_promo_offer_action(
+                    db,
+                    user_id=offer.user_id,
+                    offer_id=offer.id,
+                    action="disabled",
+                    source=offer.notification_type,
+                    percent=offer.discount_percent,
+                    effect_type=offer.effect_type,
+                    details={
+                        "reason": reason,
+                        "squad_uuid": access.squad_uuid,
+                    },
+                )
+            except Exception as exc:  # pragma: no cover - defensive logging
+                logger.warning(
+                    "Failed to log test access deactivation for offer %s: %s",
+                    offer.id if offer else None,
+                    exc,
+                )
+                try:
+                    await db.rollback()
+                except Exception as rollback_error:  # pragma: no cover - defensive logging
+                    logger.warning(
+                        "Failed to rollback session after logging failure: %s",
+                        rollback_error,
+                    )
+
+        return True
+
+    async def extend_test_access(
+        self,
+        db: AsyncSession,
+        access: SubscriptionTemporaryAccess,
+        *,
+        expires_at: datetime,
+        reason: str = "manual_extend",
+    ) -> SubscriptionTemporaryAccess:
+        access.expires_at = expires_at
+        await db.commit()
+        await db.refresh(access)
+
+        offer = access.offer
+        if offer and offer.user_id:
+            try:
+                await log_promo_offer_action(
+                    db,
+                    user_id=offer.user_id,
+                    offer_id=offer.id,
+                    action="updated",
+                    source=offer.notification_type,
+                    percent=offer.discount_percent,
+                    effect_type=offer.effect_type,
+                    details={
+                        "reason": reason,
+                        "squad_uuid": access.squad_uuid,
+                        "expires_at": expires_at.isoformat(),
+                    },
+                )
+            except Exception as exc:  # pragma: no cover - defensive logging
+                logger.warning(
+                    "Failed to log test access extension for offer %s: %s",
+                    offer.id if offer else None,
+                    exc,
+                )
+                try:
+                    await db.rollback()
+                except Exception as rollback_error:  # pragma: no cover - defensive logging
+                    logger.warning(
+                        "Failed to rollback session after logging failure: %s",
+                        rollback_error,
+                    )
+
+        return access
+
     async def cleanup_expired_test_access(self, db: AsyncSession) -> int:
         now = datetime.utcnow()
         result = await db.execute(

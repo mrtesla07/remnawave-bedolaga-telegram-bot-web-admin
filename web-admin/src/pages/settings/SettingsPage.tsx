@@ -224,7 +224,9 @@ function SettingRow(props: {
         <div className="min-w-0">
           <p className="flex items-center gap-2 text-sm font-semibold text-white">
             {title}
-            <Info className="h-3.5 w-3.5 text-textMuted/70" title={descText} />
+            <span title={descText} className="inline-flex">
+              <Info className="h-3.5 w-3.5 text-textMuted/70" aria-hidden="true" />
+            </span>
           </p>
           <p className="mt-0.5 line-clamp-2 text-xs text-textMuted" title={descText}>{descText}</p>
           {showDefault ? (

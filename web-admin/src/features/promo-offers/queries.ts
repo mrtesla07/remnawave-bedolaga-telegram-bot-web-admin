@@ -1,6 +1,14 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import type { PromoOfferCreateInput, PromoOfferListResponse, PromoOfferLogsListResponse, PromoOfferLogsQuery, PromoOfferQuery } from "./api";
+import type {
+  PromoOffer,
+  PromoOfferCreateInput,
+  PromoOfferListResponse,
+  PromoOfferLogsListResponse,
+  PromoOfferLogsQuery,
+  PromoOfferQuery,
+  PromoOfferTemplateDto,
+} from "./api";
 import { activatePromoOffer, bulkSendPromoOffers, clearPromoOfferLogs, createPromoOffer, createPromoOfferTemplate, deletePromoOffer, deletePromoOfferTemplate, fetchPromoOffer, fetchPromoOfferLogs, fetchPromoOfferTemplates, fetchPromoOffers, updatePromoOfferTemplate } from "./api";
 
 const PROMO_OFFERS_KEY = ["promo-offers", "list"] as const;
@@ -10,10 +18,10 @@ const PROMO_OFFER_TEMPLATES_KEY = ["promo-offers", "templates"] as const;
 export function usePromoOffersList(initial: PromoOfferQuery = {}) {
   const [params, setParams] = useState<PromoOfferQuery>({ limit: 25, offset: 0, ...initial });
 
-  const query = useQuery<PromoOfferListResponse>({
+  const query = useQuery<PromoOfferListResponse, Error>({
     queryKey: [...PROMO_OFFERS_KEY, params],
     queryFn: () => fetchPromoOffers(params),
-    keepPreviousData: true,
+    placeholderData: (previous) => previous,
   });
 
   return { ...query, params, setParams };
@@ -36,7 +44,7 @@ export function useDeletePromoOffer() {
 }
 
 export function usePromoOfferDetails(id: number | null) {
-  return useQuery({
+  return useQuery<PromoOffer, Error>({
     queryKey: ["promo-offers", "detail", id],
     queryFn: () => (id ? fetchPromoOffer(id) : Promise.reject("No id")),
     enabled: Boolean(id),
@@ -54,10 +62,10 @@ export function useActivatePromoOffer() {
 export function usePromoOfferLogs(initial: PromoOfferLogsQuery = {}) {
   const [params, setParams] = useState<PromoOfferLogsQuery>({ limit: 25, offset: 0, ...initial });
 
-  const query = useQuery<PromoOfferLogsListResponse>({
+  const query = useQuery<PromoOfferLogsListResponse, Error>({
     queryKey: [...PROMO_OFFER_LOGS_KEY, params],
     queryFn: () => fetchPromoOfferLogs(params),
-    keepPreviousData: true,
+    placeholderData: (previous) => previous,
   });
 
   return { ...query, params, setParams };

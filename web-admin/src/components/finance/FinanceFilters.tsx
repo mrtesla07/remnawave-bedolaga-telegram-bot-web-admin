@@ -5,6 +5,7 @@ interface FinanceFiltersProps {
     user_id?: number;
     type?: string;
     payment_method?: string;
+    status?: string;
     is_completed?: boolean;
     date_from?: string;
     date_to?: string;

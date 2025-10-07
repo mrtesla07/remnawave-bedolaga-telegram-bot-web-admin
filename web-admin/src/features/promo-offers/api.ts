@@ -32,11 +32,20 @@ export interface PromoOfferDto {
   subscription?: PromoOfferSubscriptionInfo | null;
 }
 
+export interface PromoOfferStats {
+  total: number;
+  active: number;
+  claimed: number;
+  expired: number;
+  pending: number;
+}
+
 export interface PromoOfferListResponseDto {
   items: PromoOfferDto[];
   total: number;
   limit: number;
   offset: number;
+  stats?: PromoOfferStats;
 }
 
 export interface PromoOffer {
@@ -81,6 +90,7 @@ export interface PromoOfferListResponse {
   total: number;
   limit: number;
   offset: number;
+  stats: PromoOfferStats;
 }
 
 function mapDto(dto: PromoOfferDto): PromoOffer {
@@ -112,11 +122,24 @@ export async function fetchPromoOffers(params: PromoOfferQuery = {}): Promise<Pr
       is_active: params.is_active,
     },
   });
+  const items = (data.items || []).map(mapDto);
+  const stats: PromoOfferStats =
+    data.stats ?? {
+      total: data.total ?? items.length,
+      active: 0,
+      claimed: 0,
+      expired: 0,
+      pending: 0,
+    };
   return {
-    items: (data.items || []).map(mapDto),
-    total: data.total ?? (data.items?.length ?? 0),
+    items,
+    total: data.total ?? stats.total ?? items.length,
     limit: data.limit ?? (params.limit ?? 25),
     offset: data.offset ?? (params.offset ?? 0),
+    stats: {
+      ...stats,
+      total: stats.total ?? items.length,
+    },
   };
 }
 

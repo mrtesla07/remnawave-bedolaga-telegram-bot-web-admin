@@ -3,7 +3,7 @@ import { LifeBuoy, MessageSquare, AlertTriangle, CheckCircle2, Clock3, Lock, Unl
 import { useTicketsList, useTicketDetails, useUpdateTicketPriority, useUpdateTicketStatus, useSetReplyBlock, useClearReplyBlock, useReplyToTicket } from "@/features/tickets/queries";
 import clsx from "clsx";
 import { useUserDetails } from "@/features/users/queries";
-import type { TicketDto, TicketPriority, TicketStatus } from "@/features/tickets/api";
+import type { TicketDto, TicketListQuery, TicketPriority, TicketStatus } from "@/features/tickets/api";
 import { authStore } from "@/store/auth-store";
 import { defaultApiBaseUrl } from "@/lib/config";
 
@@ -22,7 +22,7 @@ export function TicketsPage() {
     return byStatus;
   }, [items]);
 
-  const onFiltersChange = useCallback((filters: { status?: string; priority?: string; user_id?: number }) => {
+  const onFiltersChange = useCallback((filters: Partial<TicketListQuery>) => {
     setParams((prev) => ({ ...prev, ...filters, offset: 0 }));
   }, [setParams]);
 
@@ -57,20 +57,20 @@ export function TicketsPage() {
   );
 }
 
-function TicketsFilters({ onChange }: { onChange: (filters: { status?: string; priority?: string; user_id?: number }) => void }) {
+function TicketsFilters({ onChange }: { onChange: (filters: Partial<TicketListQuery>) => void }) {
   const [status, setStatus] = useState("");
   const [priority, setPriority] = useState("");
   const [userId, setUserId] = useState("");
   return (
     <div className="grid gap-3 rounded-3xl border border-outline/40 bg-surfaceMuted/40 p-4 md:grid-cols-3 xl:grid-cols-6">
-      <select className="rounded-2xl border border-outline/40 bg-surface/70 px-3 py-2 text-sm text-white focus:border-primary/70 focus:outline-none focus:ring-2 focus:ring-primary/30" value={status} onChange={(e) => { setStatus(e.target.value); onChange({ status: e.target.value || undefined }); }}>
+      <select className="rounded-2xl border border-outline/40 bg-surface/70 px-3 py-2 text-sm text-white focus:border-primary/70 focus:outline-none focus:ring-2 focus:ring-primary/30" value={status} onChange={(e) => { setStatus(e.target.value); onChange({ status: (e.target.value || undefined) as TicketStatus | undefined }); }}>
         <option value="">Все статусы</option>
         <option value="open">Открыт</option>
         <option value="answered">Отвечен</option>
         <option value="pending">В ожидании</option>
         <option value="closed">Закрыт</option>
       </select>
-      <select className="rounded-2xl border border-outline/40 bg-surface/70 px-3 py-2 text-sm text-white focus:border-primary/70 focus:outline-none focus:ring-2 focus:ring-primary/30" value={priority} onChange={(e) => { setPriority(e.target.value); onChange({ priority: e.target.value || undefined }); }}>
+      <select className="rounded-2xl border border-outline/40 bg-surface/70 px-3 py-2 text-sm text-white focus:border-primary/70 focus:outline-none focus:ring-2 focus:ring-primary/30" value={priority} onChange={(e) => { setPriority(e.target.value); onChange({ priority: (e.target.value || undefined) as TicketPriority | undefined }); }}>
         <option value="">Все приоритеты</option>
         <option value="low">Низкий</option>
         <option value="normal">Обычный</option>

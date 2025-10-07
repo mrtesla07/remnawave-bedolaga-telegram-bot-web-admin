@@ -7,10 +7,10 @@ const TICKETS_KEY = ["tickets"] as const;
 
 export function useTicketsList(initial: TicketListQuery = {}) {
   const [params, setParams] = useState<TicketListQuery>({ limit: 25, offset: 0, ...initial });
-  const query = useQuery<TicketDto[]>({
+  const query = useQuery<TicketDto[], Error>({
     queryKey: [...TICKETS_KEY, "list", params],
     queryFn: () => fetchTickets(params),
-    keepPreviousData: true,
+    placeholderData: (previous) => previous,
   });
   return { ...query, params, setParams };
 }

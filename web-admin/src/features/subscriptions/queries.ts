@@ -8,10 +8,10 @@ const SUBSCRIPTIONS_QUERY_KEY = ["subscriptions", "list"] as const;
 export function useSubscriptionsList(initial: Record<string, unknown> = {}) {
   const [params, setParams] = useState<Record<string, unknown>>({ limit: 25, offset: 0, ...initial });
 
-  const query = useQuery<SubscriptionsListResponse>({
+  const query = useQuery<SubscriptionsListResponse, Error>({
     queryKey: [...SUBSCRIPTIONS_QUERY_KEY, params],
     queryFn: () => fetchSubscriptions(params as any),
-    keepPreviousData: true,
+    placeholderData: (previous) => previous,
   });
 
   return {

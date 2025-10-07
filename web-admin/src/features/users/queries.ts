@@ -1,17 +1,23 @@
 ﻿import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { adjustUserBalance, fetchUser, fetchUsers, updateUser } from "./api";
-import type { BalanceUpdatePayload, UserUpdatePayload, UsersListQuery } from "@/types/users";
+import type {
+  BalanceUpdatePayload,
+  User,
+  UserUpdatePayload,
+  UsersListQuery,
+  UsersListResponse,
+} from "@/types/users";
 
 const USERS_QUERY_KEY = ["users", "list"];
 
 export function useUsersList(initialParams: UsersListQuery = {}) {
   const [params, setParams] = useState<UsersListQuery>(initialParams);
 
-  const query = useQuery({
+  const query = useQuery<UsersListResponse, Error>({
     queryKey: [...USERS_QUERY_KEY, params],
     queryFn: () => fetchUsers(params),
-    keepPreviousData: true,
+    placeholderData: (previous) => previous,
   });
 
   return {
@@ -22,7 +28,7 @@ export function useUsersList(initialParams: UsersListQuery = {}) {
 }
 
 export function useUserDetails(userId: number | null) {
-  return useQuery({
+  return useQuery<User, Error>({
     queryKey: ["users", "detail", userId],
     queryFn: () => (userId ? fetchUser(userId) : Promise.reject("No user")),
     enabled: Boolean(userId),

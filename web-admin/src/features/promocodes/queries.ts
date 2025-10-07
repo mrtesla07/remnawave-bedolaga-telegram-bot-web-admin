@@ -8,10 +8,10 @@ const PROMO_CODES_KEY = ["promocodes", "list"] as const;
 export function usePromocodesList(initial: PromoCodeQuery = {}) {
   const [params, setParams] = useState<PromoCodeQuery>({ limit: 25, offset: 0, ...initial });
 
-  const query = useQuery<PromoCodeListResponse>({
+  const query = useQuery<PromoCodeListResponse, Error>({
     queryKey: [...PROMO_CODES_KEY, params],
     queryFn: () => fetchPromocodes(params),
-    keepPreviousData: true,
+    placeholderData: (previous) => previous,
   });
 
   return { ...query, params, setParams };

@@ -4,7 +4,7 @@ import { Edit3, Gift, ListFilter, Plus, RefreshCw, Save, X } from "lucide-react"
 import { useActivatePromoOffer, useBulkSendPromoOffers, useClearPromoOfferLogs, useCreatePromoOffer, useCreatePromoOfferTemplate, useDeletePromoOffer, useDeletePromoOfferTemplate, usePromoOfferDetails, usePromoOfferLogs, usePromoOfferTemplates, usePromoOffersList, useUpdatePromoOfferTemplate } from "@/features/promo-offers/queries";
 import { fetchPromoOfferLogs, fetchRemnaWaveSquads } from "@/features/promo-offers/api";
 import { apiClient } from "@/lib/api-client";
-import type { PromoOfferCreateInput } from "@/features/promo-offers/api";
+import type { PromoOfferCreateInput, PromoOfferStats } from "@/features/promo-offers/api";
 
 const PAGE_SIZE = 25;
 
@@ -55,6 +55,7 @@ export default function PromoOffersPage() {
         }
         return null;
       })()}
+      <PromoOfferStatsRow stats={data?.stats} isLoading={isLoading || isFetching} />
       <section className="rounded-3xl border border-outline/40 bg-surface/60 p-4">
         <div className="grid gap-3 md:grid-cols-4">
           <label className="flex flex-col gap-1">
@@ -952,6 +953,37 @@ function BulkSendButton({ templates, onSend, isSending }: { templates: any[]; on
       ) : null}
     </>
   );
+}
+
+function PromoOfferStatsRow({ stats, isLoading }: { stats?: PromoOfferStats; isLoading: boolean }) {
+  const safeStats: PromoOfferStats = stats ?? { total: 0, active: 0, claimed: 0, expired: 0, pending: 0 };
+  const cards: Array<{ label: string; value: number; accent?: string }> = [
+    { label: "Всего", value: safeStats.total },
+    { label: "Активно", value: safeStats.active, accent: "text-success" },
+    { label: "Забрано", value: safeStats.claimed, accent: "text-primary" },
+    { label: "В ожидании", value: safeStats.pending },
+    { label: "Истекло", value: safeStats.expired, accent: "text-warning" },
+  ];
+  const skeleton = isLoading && !stats;
+  return (
+    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+      {cards.map(({ label, value, accent }) => (
+        <div
+          key={label}
+          className={`rounded-3xl border border-outline/40 bg-surface/60 p-4 ${skeleton ? "opacity-60" : ""}`}
+        >
+          <div className="text-xs uppercase tracking-[0.28em] text-textMuted">{label}</div>
+          <div className={`mt-3 text-2xl font-semibold text-white ${accent ?? ""}`}>
+            {skeleton ? "…" : formatNumber(value)}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function formatNumber(value: number): string {
+  return new Intl.NumberFormat("ru-RU").format(value);
 }
 
 function ruTypeLabel(type: string): string {

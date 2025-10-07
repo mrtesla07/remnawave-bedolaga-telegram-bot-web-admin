@@ -4,7 +4,7 @@ import logging
 from datetime import datetime, timedelta
 from typing import List, Optional
 
-from sqlalchemy import func, select
+from sqlalchemy import and_, case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -134,6 +134,61 @@ async def count_discount_offers(
 
     result = await db.execute(stmt)
     return int(result.scalar() or 0)
+
+
+async def aggregate_discount_offer_stats(
+    db: AsyncSession,
+    *,
+    user_id: Optional[int] = None,
+    notification_type: Optional[str] = None,
+    notification_type_prefix: Optional[str] = None,
+    is_active: Optional[bool] = None,
+) -> dict[str, int]:
+    stmt = select(
+        func.count(DiscountOffer.id),
+        func.sum(case((DiscountOffer.is_active == True, 1), else_=0)),  # noqa: E712
+        func.sum(case((DiscountOffer.claimed_at.isnot(None), 1), else_=0)),
+        func.sum(
+            case(
+                (
+                    and_(
+                        DiscountOffer.is_active == False,  # noqa: E712
+                        DiscountOffer.claimed_at.is_(None),
+                    ),
+                    1,
+                ),
+                else_=0,
+            ),
+        ),
+    )
+
+    if user_id is not None:
+        stmt = stmt.where(DiscountOffer.user_id == user_id)
+    if notification_type:
+        stmt = stmt.where(DiscountOffer.notification_type == notification_type)
+    elif notification_type_prefix:
+        stmt = stmt.where(DiscountOffer.notification_type.like(f"{notification_type_prefix}%"))
+    if is_active is not None:
+        stmt = stmt.where(DiscountOffer.is_active == is_active)
+
+    result = await db.execute(stmt)
+    row = result.first()
+    if row is None:
+        row = (0, 0, 0, 0)
+    total, active, claimed, expired = row
+    total_count = int(total or 0)
+    active_count = int(active or 0)
+    claimed_count = int(claimed or 0)
+    expired_count = int(expired or 0)
+    pending_count = max(total_count - claimed_count, 0)
+
+    return {
+        "total": total_count,
+        "active": active_count,
+        "claimed": claimed_count,
+        "expired": expired_count,
+        "pending": pending_count,
+    }
 
 
 async def mark_offer_claimed(

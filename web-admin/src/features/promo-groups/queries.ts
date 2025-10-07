@@ -8,10 +8,10 @@ const PROMO_GROUPS_KEY = ["promo-groups", "list"] as const;
 export function usePromoGroupsList(initial: PromoGroupQuery = {}) {
   const [params, setParams] = useState<PromoGroupQuery>({ limit: 25, offset: 0, ...initial });
 
-  const query = useQuery<PromoGroupListResponse>({
+  const query = useQuery<PromoGroupListResponse, Error>({
     queryKey: [...PROMO_GROUPS_KEY, params],
     queryFn: () => fetchPromoGroups(params),
-    keepPreviousData: true,
+    placeholderData: (previous) => previous,
   });
 
   return {

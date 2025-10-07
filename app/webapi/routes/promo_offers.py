@@ -1,28 +1,49 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
-from typing import Any, Optional
+from datetime import datetime, timedelta, timezone
 import logging
+from typing import Any, Dict, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Security, status, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database.crud.discount_offer import (
-    count_discount_offers,
+    aggregate_discount_offer_stats,
     get_offer_by_id,
     list_discount_offers,
     upsert_discount_offer,
 )
-from app.database.crud.promo_offer_log import list_promo_offer_logs, delete_promo_offer_logs
+from app.database.crud.promo_offer_log import (
+    list_promo_offer_logs,
+    delete_promo_offer_logs,
+    log_promo_offer_action,
+)
 from app.database.crud.promo_offer_template import (
     get_promo_offer_template_by_id,
     list_promo_offer_templates,
     update_promo_offer_template,
 )
-from app.database.models import PromoOfferTemplate
+from app.database.crud.promo_offer_test_access import (
+    get_test_access_by_id,
+    list_test_accesses,
+    load_server_squads_by_uuid,
+)
+from app.database.crud.server_squad import get_all_server_squads
+from app.database.crud.user import (
+    get_user_by_id as crud_get_user_by_id,
+    get_user_by_telegram_id as crud_get_user_by_telegram_id,
+)
+from app.database.models import (
+    DiscountOffer,
+    PromoOfferLog,
+    PromoOfferTemplate,
+    Subscription,
+    SubscriptionTemporaryAccess,
+    User,
+    ServerSquad,
+)
+from app.services.promo_offer_service import promo_offer_service
 from sqlalchemy import select, func
-from app.database.crud.promo_offer_log import log_promo_offer_action
-from app.database.models import DiscountOffer, PromoOfferLog, PromoOfferTemplate, Subscription, User
-from app.database.crud.user import get_user_by_id as crud_get_user_by_id, get_user_by_telegram_id as crud_get_user_by_telegram_id
 
 from ..dependencies import get_db_session, require_api_token
 from ..schemas.promo_offers import (
@@ -40,6 +61,15 @@ from ..schemas.promo_offers import (
     PromoOfferUserInfo,
     PromoOfferBulkSendRequest,
     PromoOfferBulkSendResponse,
+    PromoOfferStats,
+    PromoOfferTestAccessListResponse,
+    PromoOfferTestAccessResponse,
+    PromoOfferTestAccessExtendRequest,
+    PromoOfferServerSquadListResponse,
+    PromoOfferServerSquadResponse,
+    PromoOfferTestAccessSquadInfo,
+    PromoOfferTestAccessSubscriptionInfo,
+    PromoOfferTestAccessOfferInfo,
 )
 
 router = APIRouter()
@@ -146,6 +176,69 @@ def _build_log_response(entry: PromoOfferLog) -> PromoOfferLogResponse:
     )
 
 
+def _serialize_test_access_subscription(
+    subscription: Optional[Subscription],
+) -> Optional[PromoOfferTestAccessSubscriptionInfo]:
+    if not subscription:
+        return None
+    return PromoOfferTestAccessSubscriptionInfo(
+        id=subscription.id,
+        status=subscription.status,
+        is_trial=subscription.is_trial,
+        autopay_enabled=subscription.autopay_enabled,
+        start_date=subscription.start_date,
+        end_date=subscription.end_date,
+        connected_squads=list(subscription.connected_squads or []),
+    )
+
+
+def _serialize_test_access_offer(offer: Optional[DiscountOffer]) -> Optional[PromoOfferTestAccessOfferInfo]:
+    if not offer:
+        return None
+    return PromoOfferTestAccessOfferInfo(
+        id=offer.id,
+        notification_type=offer.notification_type,
+        discount_percent=offer.discount_percent,
+        bonus_amount_kopeks=offer.bonus_amount_kopeks,
+        effect_type=offer.effect_type,
+        expires_at=offer.expires_at,
+    )
+
+
+def _serialize_test_access(
+    entry: SubscriptionTemporaryAccess,
+    *,
+    squad_map: Dict[str, "ServerSquad"],
+) -> PromoOfferTestAccessResponse:
+    squad = squad_map.get(entry.squad_uuid)
+    squad_info = None
+    if squad:
+        squad_info = PromoOfferTestAccessSquadInfo(
+            uuid=squad.squad_uuid,
+            display_name=squad.display_name,
+            country_code=squad.country_code,
+            is_available=squad.is_available,
+            price_kopeks=squad.price_kopeks,
+        )
+
+    offer = getattr(entry, "offer", None)
+
+    return PromoOfferTestAccessResponse(
+        id=entry.id,
+        offer_id=entry.offer_id,
+        user=_serialize_user(getattr(offer, "user", None) if offer else None),
+        subscription=_serialize_test_access_subscription(getattr(entry, "subscription", None)),
+        squad_uuid=entry.squad_uuid,
+        squad=squad_info,
+        expires_at=entry.expires_at,
+        created_at=entry.created_at,
+        deactivated_at=entry.deactivated_at,
+        is_active=entry.is_active,
+        was_already_connected=entry.was_already_connected,
+        offer=_serialize_test_access_offer(offer),
+    )
+
+
 @router.get("", response_model=PromoOfferListResponse)
 async def list_promo_offers(
     _: Any = Security(require_api_token),
@@ -170,7 +263,7 @@ async def list_promo_offers(
         notification_type_prefix=nt_prefix,
         is_active=is_active,
     )
-    total = await count_discount_offers(
+    stats_raw = await aggregate_discount_offer_stats(
         db,
         user_id=user_id,
         notification_type=notification_type if nt_prefix is None else None,
@@ -180,9 +273,127 @@ async def list_promo_offers(
 
     return PromoOfferListResponse(
         items=[_serialize_offer(offer) for offer in offers],
+        total=stats_raw["total"],
+        limit=limit,
+        offset=offset,
+        stats=PromoOfferStats(**stats_raw),
+    )
+
+
+@router.get("/test-access", response_model=PromoOfferTestAccessListResponse)
+async def list_promo_test_access(
+    _: Any = Security(require_api_token),
+    db: AsyncSession = Depends(get_db_session),
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+    is_active: Optional[bool] = Query(True),
+    user_id: Optional[int] = Query(None, ge=1),
+    offer_id: Optional[int] = Query(None, ge=1),
+    squad_uuid: Optional[str] = Query(None),
+) -> PromoOfferTestAccessListResponse:
+    accesses, total = await list_test_accesses(
+        db,
+        offset=offset,
+        limit=limit,
+        is_active=is_active,
+        user_id=user_id,
+        offer_id=offer_id,
+        squad_uuid=squad_uuid,
+    )
+    squad_map = await load_server_squads_by_uuid(db, [acc.squad_uuid for acc in accesses])
+
+    return PromoOfferTestAccessListResponse(
+        items=[_serialize_test_access(acc, squad_map=squad_map) for acc in accesses],
         total=total,
         limit=limit,
         offset=offset,
+    )
+
+
+@router.patch("/test-access/{access_id}", response_model=PromoOfferTestAccessResponse)
+async def extend_promo_test_access(
+    access_id: int,
+    payload: PromoOfferTestAccessExtendRequest,
+    _: Any = Security(require_api_token),
+    db: AsyncSession = Depends(get_db_session),
+) -> PromoOfferTestAccessResponse:
+    access = await get_test_access_by_id(db, access_id)
+    if not access:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Test access not found")
+
+    if payload.expires_at is not None:
+        new_expires = payload.expires_at
+    else:
+        new_expires = access.expires_at + timedelta(hours=payload.extend_hours or 0)
+
+    if new_expires.tzinfo is not None:
+        new_expires = new_expires.astimezone(timezone.utc).replace(tzinfo=None)
+
+    if new_expires <= datetime.utcnow():
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "expires_at must be in the future")
+
+    await promo_offer_service.extend_test_access(
+        db,
+        access,
+        expires_at=new_expires,
+        reason="manual_extend",
+    )
+    await db.refresh(access)
+    squad_map = await load_server_squads_by_uuid(db, [access.squad_uuid])
+    return _serialize_test_access(access, squad_map=squad_map)
+
+
+@router.post("/test-access/{access_id}/deactivate", response_model=PromoOfferTestAccessResponse)
+async def deactivate_promo_test_access(
+    access_id: int,
+    _: Any = Security(require_api_token),
+    db: AsyncSession = Depends(get_db_session),
+) -> PromoOfferTestAccessResponse:
+    access = await get_test_access_by_id(db, access_id)
+    if not access:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Test access not found")
+
+    await promo_offer_service.deactivate_test_access(
+        db,
+        access,
+        reason="manual_disable",
+    )
+    await db.refresh(access)
+    squad_map = await load_server_squads_by_uuid(db, [access.squad_uuid])
+    return _serialize_test_access(access, squad_map=squad_map)
+
+
+@router.get("/test-access/squads", response_model=PromoOfferServerSquadListResponse)
+async def list_test_access_squads(
+    _: Any = Security(require_api_token),
+    db: AsyncSession = Depends(get_db_session),
+    page: int = Query(1, ge=1),
+    limit: int = Query(50, ge=1, le=200),
+    available_only: bool = Query(True),
+) -> PromoOfferServerSquadListResponse:
+    squads, total = await get_all_server_squads(
+        db,
+        available_only=available_only,
+        page=page,
+        limit=limit,
+    )
+    items = [
+        PromoOfferServerSquadResponse(
+            id=squad.id,
+            squad_uuid=squad.squad_uuid,
+            display_name=squad.display_name,
+            country_code=squad.country_code,
+            is_available=squad.is_available,
+            price_kopeks=squad.price_kopeks or 0,
+            description=squad.description,
+        )
+        for squad in squads
+    ]
+    return PromoOfferServerSquadListResponse(
+        items=items,
+        total=total,
+        page=page,
+        limit=limit,
     )
 
 
@@ -739,4 +950,7 @@ async def bulk_send_promo_offers(
         sent=sent,
         failed=failed,
     )
+
+
+
 

@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 class PromoOfferUserInfo(BaseModel):
@@ -47,6 +47,15 @@ class PromoOfferListResponse(BaseModel):
     total: int
     limit: int
     offset: int
+    stats: "PromoOfferStats"
+
+
+class PromoOfferStats(BaseModel):
+    total: int
+    active: int
+    claimed: int
+    expired: int
+    pending: int
 
 
 class PromoOfferCreateRequest(BaseModel):
@@ -161,3 +170,80 @@ class PromoOfferLogListResponse(BaseModel):
     total: int
     limit: int
     offset: int
+
+
+class PromoOfferTestAccessSquadInfo(BaseModel):
+    uuid: str
+    display_name: Optional[str] = None
+    country_code: Optional[str] = None
+    is_available: Optional[bool] = None
+    price_kopeks: Optional[int] = None
+
+
+class PromoOfferTestAccessSubscriptionInfo(BaseModel):
+    id: int
+    status: Optional[str] = None
+    is_trial: Optional[bool] = None
+    autopay_enabled: Optional[bool] = None
+    start_date: Optional[datetime] = None
+    end_date: Optional[datetime] = None
+    connected_squads: List[str] = Field(default_factory=list)
+
+
+class PromoOfferTestAccessOfferInfo(BaseModel):
+    id: int
+    notification_type: Optional[str] = None
+    discount_percent: Optional[int] = None
+    bonus_amount_kopeks: Optional[int] = None
+    effect_type: Optional[str] = None
+    expires_at: Optional[datetime] = None
+
+
+class PromoOfferTestAccessResponse(BaseModel):
+    id: int
+    offer_id: int
+    user: Optional[PromoOfferUserInfo] = None
+    subscription: Optional[PromoOfferTestAccessSubscriptionInfo] = None
+    squad_uuid: str
+    squad: Optional[PromoOfferTestAccessSquadInfo] = None
+    expires_at: datetime
+    created_at: datetime
+    deactivated_at: Optional[datetime] = None
+    is_active: bool
+    was_already_connected: bool
+    offer: Optional[PromoOfferTestAccessOfferInfo] = None
+
+
+class PromoOfferTestAccessListResponse(BaseModel):
+    items: List[PromoOfferTestAccessResponse]
+    total: int
+    limit: int
+    offset: int
+
+
+class PromoOfferTestAccessExtendRequest(BaseModel):
+    extend_hours: Optional[int] = Field(None, ge=1, le=168)
+    expires_at: Optional[datetime] = None
+
+    @model_validator(mode="after")
+    def validate_choice(self) -> "PromoOfferTestAccessExtendRequest":
+        if self.extend_hours is None and self.expires_at is None:
+            raise ValueError("extend_hours or expires_at must be provided")
+        return self
+
+
+class PromoOfferServerSquadResponse(BaseModel):
+    id: int
+    squad_uuid: str
+    display_name: str
+    country_code: Optional[str] = None
+    is_available: bool
+    price_kopeks: int
+    description: Optional[str] = None
+
+
+class PromoOfferServerSquadListResponse(BaseModel):
+    items: List[PromoOfferServerSquadResponse]
+    total: int
+    page: int
+    limit: int

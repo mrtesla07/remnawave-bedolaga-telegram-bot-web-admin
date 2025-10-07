@@ -6,8 +6,11 @@ const BROADCASTS_KEY = ["broadcasts", "list"] as const;
 
 export function useBroadcastsList(initial: { limit?: number; offset?: number } = {}) {
   const params = { limit: initial.limit ?? 50, offset: initial.offset ?? 0 };
-  const query = useQuery<BroadcastListResponse>({ queryKey: [...BROADCASTS_KEY, params], queryFn: () => fetchBroadcasts(params), keepPreviousData: true });
-  return query;
+  return useQuery<BroadcastListResponse, Error>({
+    queryKey: [...BROADCASTS_KEY, params],
+    queryFn: () => fetchBroadcasts(params),
+    placeholderData: (previous) => previous,
+  });
 }
 
 export function useCreateBroadcast() {

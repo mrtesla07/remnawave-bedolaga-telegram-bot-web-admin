@@ -23,6 +23,7 @@ import BackupsPage from "@/pages/backups/BackupsPage";
 import SecurityPage from "@/pages/security/SecurityPage";
 import NotificationsPage from "@/pages/notifications/NotificationsPage";
 import PromoOffersPage from "@/pages/promo-offers/PromoOffersPage";
+import TestAccessPage from "@/pages/test-access/TestAccessPage";
 
 const placeholderRoutes = [
   { path: "statistics", title: "Статистика", description: "Метрики продукта и воронок продаж." },
@@ -64,6 +65,7 @@ const router = createBrowserRouter([
       { path: "tickets", element: <TicketsPage /> },
       { path: "promocodes", element: <PromocodesPage /> },
       { path: "promo-offers", element: <PromoOffersPage /> },
+      { path: "promo-offers/test-access", element: <TestAccessPage /> },
       { path: "campaigns", element: <BroadcastsPage /> },
       { path: "health", element: <HealthPage /> },
       { path: "settings", element: <SettingsPage /> },

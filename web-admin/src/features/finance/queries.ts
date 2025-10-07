@@ -8,10 +8,10 @@ const TRANSACTIONS_QUERY_KEY = ["finance", "transactions"];
 export function useTransactionsList(initial: TransactionsQuery = {}) {
   const [params, setParams] = useState<TransactionsQuery>({ limit: 25, offset: 0, ...initial });
 
-  const query = useQuery<TransactionsListResponse>({
+  const query = useQuery<TransactionsListResponse, Error>({
     queryKey: [...TRANSACTIONS_QUERY_KEY, params],
     queryFn: () => fetchTransactions(params),
-    keepPreviousData: true,
+    placeholderData: (previous) => previous,
     staleTime: 15_000,
   });
 
