@@ -36,6 +36,9 @@ app/**/*.pyd
 *.pyd
 !web-admin/
 !web-admin/**
+web-admin/node_modules/
+web-admin/dist/
+web-admin/.vite/
 
 # Разрешаем папку caddy/ и все её содержимое
 !caddy/
