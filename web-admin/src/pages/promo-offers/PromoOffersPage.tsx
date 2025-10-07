@@ -377,7 +377,7 @@ function OffersTable({ items, isLoading, onFilter, onDelete, onOpen }: { items: 
   return (
     <div className="overflow-hidden rounded-3xl border border-outline/40">
       <table className="min-w-full divide-y divide-outline/40 bg-surface/80 text-sm">
-        <thead className="bg-surfaceMuted/40 text-xs uppercase tracking-[0.28em] text-textMuted">
+        <thead className="sticky top-0 z-10 bg-surfaceMuted/60 backdrop-blur text-[11px] uppercase tracking-[0.18em] text-textMuted">
           <tr>
             <th className="px-4 py-3 text-left">Пользователь</th>
             <th className="px-4 py-3 text-left">Тип</th>
@@ -390,7 +390,7 @@ function OffersTable({ items, isLoading, onFilter, onDelete, onOpen }: { items: 
         </thead>
         <tbody className="divide-y divide-outline/40">
           {items.map((o) => (
-            <tr key={o.id} className="bg-surface/60">
+            <tr key={o.id} className="odd:bg-surface/50 even:bg-surface/70 hover:bg-surfaceActive/60 transition">
               <td className="px-4 py-3 font-medium text-white">{o.user?.username ? `@${o.user.username}` : `#${o.userId}`}</td>
               <td className="px-4 py-3">
                 <span className="inline-flex items-center rounded-lg bg-surface/60 px-2 py-1 text-xs text-textMuted">
@@ -440,7 +440,7 @@ function LogsTable({ items, isLoading }: { items: any[]; isLoading?: boolean }) 
   return (
     <div className="overflow-hidden rounded-3xl border border-outline/40">
       <table className="min-w-full divide-y divide-outline/40 bg-surface/80 text-sm">
-        <thead className="bg-surfaceMuted/40 text-xs uppercase tracking-[0.28em] text-textMuted">
+        <thead className="sticky top-0 z-10 bg-surfaceMuted/60 backdrop-blur text-[11px] uppercase tracking-[0.18em] text-textMuted">
           <tr>
             <th className="px-4 py-3 text-left">Время</th>
             <th className="px-4 py-3 text-left">Пользователь</th>
@@ -452,7 +452,7 @@ function LogsTable({ items, isLoading }: { items: any[]; isLoading?: boolean }) 
         </thead>
         <tbody className="divide-y divide-outline/40">
           {items.map((e) => (
-            <tr key={e.id} className="bg-surface/60">
+            <tr key={e.id} className="odd:bg-surface/50 even:bg-surface/70 hover:bg-surfaceActive/60 transition">
               <td className="px-4 py-3 text-textMuted">{new Date(e.created_at).toLocaleString("ru-RU")}</td>
               <td className="px-4 py-3 text-textMuted">{e.user?.username ? `@${e.user.username}` : `#${e.user_id}`}</td>
               <td className="px-4 py-3 text-textMuted">{ruActionLabel(e.action)}</td>
@@ -767,6 +767,7 @@ function BulkSendButton({ templates, onSend, isSending }: { templates: any[]; on
   const [mediaFileId, setMediaFileId] = useState<string>("");
   const [mediaUploadError, setMediaUploadError] = useState<string>("");
   const [availableSquads, setAvailableSquads] = useState<any[]>([]);
+  const [step, setStep] = useState<number>(1);
 
   const loadSquads = async () => {
     try {
@@ -777,35 +778,57 @@ function BulkSendButton({ templates, onSend, isSending }: { templates: any[]; on
     } catch {}
   };
 
-  const [previewOpen, setPreviewOpen] = useState(false);
-  const [previewData, setPreviewData] = useState<any>(null);
+  const buildPayload = (): any => ({
+    segment,
+    template_id: templateId,
+    limit,
+    discount_percent: discountPercent === "" ? undefined : Number(discountPercent),
+    valid_hours: validHours === "" ? undefined : Number(validHours),
+    send_notification: sendNotification,
+    test_squad_uuids: testSquads ? testSquads.split(",").map(s => s.trim()).filter(Boolean) : undefined,
+    test_duration_hours: testDurationHours === "" ? undefined : Number(testDurationHours),
+    media_type: mediaType || undefined,
+    media_file_id: mediaFileId || undefined,
+  });
 
   return (
     <>
       <button
         type="button"
         className="inline-flex items-center gap-2 rounded-xl bg-success/20 px-4 py-2 text-sm font-semibold text-success hover:bg-success/30"
-        onClick={() => setOpen(true)}
+        onClick={() => { setStep(1); setOpen(true); }}
       >
         Массовая отправка
       </button>
       {open ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
-          <div className="relative w-full max-w-xl rounded-3xl border border-outline/40 bg-surface/95 p-8 shadow-card">
+          <div className="relative w-full max-w-2xl rounded-3xl border border-outline/40 bg-surface/95 p-8 shadow-card">
             <button className="absolute right-6 top-6 rounded-full bg-surfaceMuted/60 p-2 text-textMuted hover:text-white" onClick={() => setOpen(false)}>×</button>
-            <header className="flex items-center gap-3">
-              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-success/20 text-success">
-                <Gift className="h-5 w-5" />
+
+            {/* Sticky header with stepper */}
+            <div className="sticky top-0 z-10 -mx-8 -mt-8 rounded-t-3xl border-b border-outline/40 bg-surface/95 px-8 pt-6 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-success/20 text-success">
+                  <Gift className="h-5 w-5" />
+                </div>
+                <div>
+                  <p className="text-xs uppercase tracking-[0.32em] text-textMuted/70">Персональные предложения</p>
+                  <h2 className="text-xl font-semibold text-white">Массовая отправка</h2>
+                </div>
               </div>
-              <div>
-                <p className="text-xs uppercase tracking-[0.32em] text-textMuted/70">Персональные предложения</p>
-                <h2 className="text-xl font-semibold text-white">Массовая отправка</h2>
-              </div>
-            </header>
-            <div className="mt-6 grid gap-6">
-              <div className="rounded-2xl border border-outline/40 bg-surface/70 p-3">
-                <div className="mb-2 text-[10px] uppercase tracking-[0.28em] text-textMuted">Сегмент и цель</div>
-                <div className="grid gap-2 md:grid-cols-2">
+              <ol className="mt-3 flex items-center gap-3 text-xs">
+                <li className={step === 1 ? "text-primary" : "text-textMuted"}>1. Сегмент и шаблон</li>
+                <span className="text-textMuted">→</span>
+                <li className={step === 2 ? "text-primary" : "text-textMuted"}>2. Параметры</li>
+                <span className="text-textMuted">→</span>
+                <li className={step === 3 ? "text-primary" : "text-textMuted"}>3. Медиа и обзор</li>
+              </ol>
+            </div>
+
+            {/* Scrollable content */}
+            <div className="max-h-[65vh] overflow-y-auto py-4 space-y-6">
+              {step === 1 ? (
+                <div className="grid gap-4 md:grid-cols-2">
                   <label className="flex flex-col gap-2">
                     <span className="text-xs uppercase tracking-[0.28em] text-textMuted">Сегмент</span>
                     <select className="rounded-2xl border border-outline/40 bg-surface/70 px-3 py-2 text-sm text-white" value={segment} onChange={(e) => setSegment(e.target.value)}>
@@ -824,11 +847,10 @@ function BulkSendButton({ templates, onSend, isSending }: { templates: any[]; on
                     </select>
                   </label>
                 </div>
-              </div>
+              ) : null}
 
-              <div className="rounded-2xl border border-outline/40 bg-surface/70 p-3">
-                <div className="mb-2 text-[10px] uppercase tracking-[0.28em] text-textMuted">Параметры</div>
-                <div className="grid gap-2 md:grid-cols-3">
+              {step === 2 ? (
+                <div className="grid gap-4 md:grid-cols-3">
                   <label className="flex flex-col gap-2">
                     <span className="text-xs uppercase tracking-[0.28em] text-textMuted">Лимит</span>
                     <input className="rounded-2xl border border-outline/40 bg-surface/60 px-3 py-2 text-sm text-white" type="number" min={1} max={2000} value={limit} onChange={(e) => setLimit(Math.max(1, Math.min(2000, Number(e.target.value) || 1)))} />
@@ -841,134 +863,89 @@ function BulkSendButton({ templates, onSend, isSending }: { templates: any[]; on
                     <span className="text-xs uppercase tracking-[0.28em] text-textMuted">Срок (ч)</span>
                     <input className="rounded-2xl border border-outline/40 bg-surface/60 px-3 py-2 text-sm text-white" type="number" min={1} value={validHours as any} onChange={(e) => setValidHours(e.target.value === "" ? "" : Math.max(1, Number(e.target.value) || 1))} placeholder="по шаблону" />
                   </label>
+                  <label className="md:col-span-3 mt-1 flex items-center gap-2">
+                    <input type="checkbox" checked={sendNotification} onChange={(e) => setSendNotification(e.target.checked)} />
+                    <span className="text-sm text-textMuted">Отправить уведомления</span>
+                  </label>
                 </div>
-                <label className="mt-2 flex items-center gap-2">
-                  <input type="checkbox" checked={sendNotification} onChange={(e) => setSendNotification(e.target.checked)} />
-                  <span className="text-sm text-textMuted">Отправить уведомления</span>
-                </label>
-              </div>
-              <label className="flex flex-col gap-2">
-                <span className="text-xs uppercase tracking-[0.28em] text-textMuted">Сегмент</span>
-                <select className="rounded-2xl border border-outline/40 bg-surface/70 px-3 py-2 text-sm text-white" value={segment} onChange={(e) => setSegment(e.target.value)}>
-                  <option value="trial_active">Активный триал</option>
-                  <option value="trial_expired">Триал закончился</option>
-                  <option value="paid_active">Платная активная</option>
-                </select>
-              </label>
-              <label className="md:col-span-2 flex flex-col gap-2">
-                <span className="text-xs uppercase tracking-[0.28em] text-textMuted">UUID сквадов (для тест‑доступа, через запятую)</span>
-                <input className="rounded-2xl border border-outline/40 bg-surface/60 px-3 py-2 text-sm text-white" value={testSquads} onFocus={loadSquads} onChange={(e) => setTestSquads(e.target.value)} placeholder="uuid1, uuid2" />
-                {availableSquads.length ? (
-                  <div className="flex flex-wrap gap-1 pt-1">
-                    {availableSquads.slice(0, 12).map((s:any) => (
-                      <button key={s.uuid} type="button" className="rounded-lg border border-outline/40 px-2 py-1 text-xs text-textMuted hover:text-white" onClick={() => setTestSquads(v => (v ? (v+", "+s.uuid) : s.uuid))}>
-                        {s.name}
-                      </button>
-                    ))}
+              ) : null}
+
+              {step === 3 ? (
+                <div className="space-y-4">
+                  <div className="grid gap-2 rounded-2xl border border-outline/40 bg-surface/70 p-3">
+                    <span className="text-xs uppercase tracking-[0.28em] text-textMuted">Медиа (необязательно)</span>
+                    <div className="grid gap-2 md:grid-cols-3">
+                      <select className="rounded-2xl border border-outline/40 bg-surface/70 px-3 py-2 text-sm text-white" value={mediaType} onChange={(e) => setMediaType(e.target.value)}>
+                        <option value="">Тип не выбран</option>
+                        <option value="photo">Фото</option>
+                        <option value="video">Видео</option>
+                        <option value="document">Документ</option>
+                      </select>
+                      <input className="rounded-2xl border border-outline/40 bg-surface/70 px-3 py-2 text-sm text-white" placeholder="Telegram file_id" value={mediaFileId} onChange={(e) => setMediaFileId(e.target.value)} />
+                      <MediaUploader onUploaded={(m) => { setMediaType(m.type); setMediaFileId(m.file_id); setMediaUploadError(""); }} onError={(msg) => setMediaUploadError(msg)} />
+                    </div>
+                    {mediaUploadError ? <div className="text-xs text-danger">{mediaUploadError}</div> : null}
+                    {mediaType && mediaFileId ? (
+                      <div className="text-xs text-textMuted">Будет отправлено {mediaType} с file_id: {mediaFileId}</div>
+                    ) : (
+                      <div className="text-xs text-textMuted">Можете вставить готовый file_id или загрузить файл</div>
+                    )}
                   </div>
-                ) : null}
-              </label>
-              <label className="flex flex-col gap-2">
-                <span className="text-xs uppercase tracking-[0.28em] text-textMuted">Длительность теста (ч) — переопределить</span>
-                <input className="rounded-2xl border border-outline/40 bg-surface/60 px-3 py-2 text-sm text-white" type="number" min={1} value={testDurationHours as any} onChange={(e) => setTestDurationHours(e.target.value === "" ? "" : Math.max(1, Number(e.target.value) || 1))} placeholder="по шаблону" />
-              </label>
-              <label className="flex flex-col gap-2">
-                <span className="text-xs uppercase tracking-[0.28em] text-textMuted">Шаблон</span>
-                <select className="rounded-2xl border border-outline/40 bg-surface/70 px-3 py-2 text-sm text-white" value={templateId} onChange={(e) => setTemplateId(e.target.value ? Number(e.target.value) : "") }>
-                  <option value="">Выберите шаблон</option>
-                  {templates.map((t) => (
-                    <option key={t.id} value={t.id}>{t.name}</option>
-                  ))}
-                </select>
-              </label>
-              <label className="flex flex-col gap-2">
-                <span className="text-xs uppercase tracking-[0.28em] text-textMuted">Лимит</span>
-                <input className="rounded-2xl border border-outline/40 bg-surface/60 px-3 py-2 text-sm text-white" type="number" min={1} max={2000} value={limit} onChange={(e) => setLimit(Math.max(1, Math.min(2000, Number(e.target.value) || 1)))} />
-                <span className="text-[11px] text-textMuted">Максимум пользователей для отправки за раз</span>
-              </label>
-              <label className="flex flex-col gap-2">
-                <span className="text-xs uppercase tracking-[0.28em] text-textMuted">Скидка, % (переопределить)</span>
-                <input className="rounded-2xl border border-outline/40 bg-surface/60 px-3 py-2 text-sm text-white" type="number" min={0} value={discountPercent as any} onChange={(e) => setDiscountPercent(e.target.value === "" ? "" : Math.max(0, Number(e.target.value) || 0))} placeholder="по шаблону" />
-              </label>
-              <label className="flex flex-col gap-2">
-                <span className="text-xs uppercase tracking-[0.28em] text-textMuted">Срок (ч) (переопределить)</span>
-                <input className="rounded-2xl border border-outline/40 bg-surface/60 px-3 py-2 text-sm text-white" type="number" min={1} value={validHours as any} onChange={(e) => setValidHours(e.target.value === "" ? "" : Math.max(1, Number(e.target.value) || 1))} placeholder="по шаблону" />
-              </label>
-              <label className="flex items-center gap-2">
-                <input type="checkbox" checked={sendNotification} onChange={(e) => setSendNotification(e.target.checked)} />
-                <span className="text-sm text-textMuted">Отправить уведомления</span>
-              </label>
-              <div className="grid gap-2 rounded-2xl border border-outline/40 bg-surface/70 p-3">
-                <span className="text-xs uppercase tracking-[0.28em] text-textMuted">Медиа (необязательно)</span>
-                <div className="grid gap-2 md:grid-cols-3">
-                  <select className="rounded-2xl border border-outline/40 bg-surface/70 px-3 py-2 text-sm text-white" value={mediaType} onChange={(e) => setMediaType(e.target.value)}>
-                    <option value="">Тип не выбран</option>
-                    <option value="photo">Фото</option>
-                    <option value="video">Видео</option>
-                    <option value="document">Документ</option>
-                  </select>
-                  <input className="rounded-2xl border border-outline/40 bg-surface/70 px-3 py-2 text-sm text-white" placeholder="Telegram file_id" value={mediaFileId} onChange={(e) => setMediaFileId(e.target.value)} />
-                  <MediaUploader onUploaded={(m) => { setMediaType(m.type); setMediaFileId(m.file_id); setMediaUploadError(""); }} onError={(msg) => setMediaUploadError(msg)} />
+                  <div className="grid gap-2 md:grid-cols-2">
+                    <label className="flex flex-col gap-2">
+                      <span className="text-xs uppercase tracking-[0.28em] text-textMuted">UUID сквадов (через запятую)</span>
+                      <input className="rounded-2xl border border-outline/40 bg-surface/60 px-3 py-2 text-sm text-white" value={testSquads} onFocus={loadSquads} onChange={(e) => setTestSquads(e.target.value)} placeholder="uuid1, uuid2" />
+                      {availableSquads.length ? (
+                        <div className="flex flex-wrap gap-1 pt-1">
+                          {availableSquads.slice(0, 12).map((s:any) => (
+                            <button key={s.uuid} type="button" className="rounded-lg border border-outline/40 px-2 py-1 text-xs text-textMuted hover:text-white" onClick={() => setTestSquads(v => (v ? (v+", "+s.uuid) : s.uuid))}>
+                              {s.name}
+                            </button>
+                          ))}
+                        </div>
+                      ) : null}
+                    </label>
+                    <label className="flex flex-col gap-2">
+                      <span className="text-xs uppercase tracking-[0.28em] text-textMuted">Длительность теста (ч)</span>
+                      <input className="rounded-2xl border border-outline/40 bg-surface/60 px-3 py-2 text-sm text-white" type="number" min={1} value={testDurationHours as any} onChange={(e) => setTestDurationHours(e.target.value === "" ? "" : Math.max(1, Number(e.target.value) || 1))} placeholder="по шаблону" />
+                    </label>
+                  </div>
+                  {/* Summary */}
+                  <div className="rounded-2xl border border-outline/40 bg-surface/70 p-3 text-sm">
+                    <div className="mb-2 text-[10px] uppercase tracking-[0.28em] text-textMuted">Итого</div>
+                    <div className="grid gap-2 md:grid-cols-2 text-textMuted">
+                      <div>Сегмент: <span className="text-white">{segment}</span></div>
+                      <div>Шаблон: <span className="text-white">{templateId || "—"}</span></div>
+                      <div>Лимит: <span className="text-white">{limit}</span></div>
+                      <div>Скидка: <span className="text-white">{discountPercent === "" ? "по шаблону" : discountPercent + "%"}</span></div>
+                      <div>Срок: <span className="text-white">{validHours === "" ? "по шаблону" : validHours + " ч"}</span></div>
+                      <div>Уведомления: <span className="text-white">{sendNotification ? "да" : "нет"}</span></div>
+                    </div>
+                  </div>
                 </div>
-                {mediaUploadError ? <div className="text-xs text-danger">{mediaUploadError}</div> : null}
-                {mediaType && mediaFileId ? (
-                  <div className="text-xs text-textMuted">Будет отправлено {mediaType} с file_id: {mediaFileId}</div>
+              ) : null}
+            </div>
+
+            {/* Sticky Footer */}
+            <div className="sticky bottom-0 z-10 -mx-8 -mb-8 rounded-b-3xl border-t border-outline/40 bg-surface/95 px-8 py-4 flex items-center justify-between">
+              <div className="text-xs text-textMuted">Шаг {step} из 3</div>
+              <div className="flex items-center gap-3">
+                <button type="button" className="button-ghost" onClick={() => (step > 1 ? setStep(step - 1) : setOpen(false))} disabled={isSending}>{step > 1 ? "Назад" : "Отмена"}</button>
+                {step < 3 ? (
+                  <button type="button" className="button-primary" onClick={() => setStep(step + 1)} disabled={step === 1 && !templateId}>Далее</button>
                 ) : (
-                  <div className="text-xs text-textMuted">Можете вставить готовый file_id или загрузить файл</div>
+                  <button
+                    type="button"
+                    className="button-primary"
+                    disabled={isSending || !templateId}
+                    onClick={async () => {
+                      const payload = buildPayload();
+                      await onSend(payload);
+                      setOpen(false);
+                    }}
+                  >Отправить</button>
                 )}
               </div>
-            </div>
-            <footer className="mt-6 flex items-center justify-end gap-3">
-              <button type="button" className="button-ghost" onClick={() => setOpen(false)} disabled={isSending}>Отмена</button>
-              <button
-                type="button"
-                className="button-primary"
-                disabled={isSending || !templateId}
-                onClick={async () => {
-                  const payload = {
-                    segment,
-                    template_id: templateId,
-                    limit,
-                    discount_percent: discountPercent === "" ? undefined : Number(discountPercent),
-                    valid_hours: validHours === "" ? undefined : Number(validHours),
-                    send_notification: sendNotification,
-                    test_squad_uuids: testSquads ? testSquads.split(",").map(s => s.trim()).filter(Boolean) : undefined,
-                    test_duration_hours: testDurationHours === "" ? undefined : Number(testDurationHours),
-                    media_type: mediaType || undefined,
-                    media_file_id: mediaFileId || undefined,
-                  } as any;
-                  setPreviewData(payload);
-                  setPreviewOpen(true);
-                }}
-              >
-                Отправить
-              </button>
-            </footer>
-          </div>
-        </div>
-      ) : null}
-
-      {previewOpen ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
-          <div className="w-full max-w-xl rounded-3xl border border-outline/40 bg-surface/95 p-6">
-            <div className="mb-4 text-lg font-semibold text-white">Предпросмотр</div>
-            <div className="space-y-2 text-sm text-textMuted">
-              <div>Сегмент: <span className="text-white">{segment}</span></div>
-              <div>Шаблон: <span className="text-white">{templateId || "—"}</span></div>
-              <div>Лимит: <span className="text-white">{limit}</span></div>
-              <div>Скидка: <span className="text-white">{discountPercent === "" ? "по шаблону" : discountPercent + "%"}</span></div>
-              <div>Срок: <span className="text-white">{validHours === "" ? "по шаблону" : validHours + " ч"}</span></div>
-              <div>Тест‑сквады: <span className="text-white">{testSquads || "—"}</span></div>
-              <div>Длительность теста: <span className="text-white">{testDurationHours === "" ? "по шаблону" : testDurationHours + " ч"}</span></div>
-              <div>Медиа: <span className="text-white">{mediaType && mediaFileId ? `${mediaType} (${mediaFileId})` : "нет"}</span></div>
-            </div>
-            <div className="mt-4 flex items-center justify-end gap-2">
-              <button className="button-ghost" onClick={() => setPreviewOpen(false)} disabled={isSending}>Назад</button>
-              <button className="button-primary" disabled={isSending} onClick={async () => {
-                await onSend(previewData);
-                setPreviewOpen(false);
-                setOpen(false);
-              }}>Отправить</button>
             </div>
           </div>
         </div>
